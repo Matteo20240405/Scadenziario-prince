@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scadenziario Pratiche Prevenzione Incendi</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .card { border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .imminent { background-color: #fef3c7; border-left: 4px solid #F59E0B; }
+        #errorMessage { display: none; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- MESSAGGIO DI ERRORE CRITICO -->
+    <div id="errorMessage" class="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 card">
+        <p class="font-bold">Errore di Configurazione Firebase</p>
+        <p id="errorDetails" class="text-sm"></p>
+        <p class="text-xs mt-2 italic">Assicurati di aver attivato "Anonymous Sign-in" in Build > Authentication > Sign-in method nella console di Firebase.</p>
+    </div>
+
+    <!-- MODALE AGGIUNTA/MODIFICA -->
+    <div id="practiceModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white w-full max-w-lg p-6 card">
+            <h2 id="modalTitle" class="text-2xl font-bold mb-4 text-gray-800">Gestione Pratica</h2>
+            <form id="practiceForm" class="space-y-4">
+                <input type="hidden" id="practiceId">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">PI</label>
+                        <input type="text" id="pi" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Scadenza</label>
+                        <input type="date" id="deadline" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Condominio/Società</label>
+                    <input type="text" id="entityName" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Comune</label>
+                        <input type="text" id="municipality" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Amministratore</label>
+                        <input type="text" id="administrator" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-200 rounded text-gray-700 hover:bg-gray-300">Annulla</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Salva Pratica</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="mb-6 p-6 bg-white card">
+        <h1 class="text-3xl font-bold text-gray-800 flex items-center">
+            <i data-lucide="calendar-check" class="mr-3 text-blue-600"></i>
+            Scadenziario Prevenzione Incendi
+        </h1>
+    </header>
+
+    <!-- DASHBOARD STATISTICHE -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div class="bg-white p-6 card border-b-4 border-blue-600">
+            <p class="text-gray-500 text-sm font-medium uppercase">Totale Pratiche</p>
+            <p id="statTotal" class="text-3xl font-bold text-gray-800">0</p>
+        </div>
+        <div class="bg-white p-6 card border-b-4 border-amber-500">
+            <p class="text-gray-500 text-sm font-medium uppercase">In Scadenza (60gg)</p>
+            <p id="statImminent" class="text-3xl font-bold text-gray-800">0</p>
+        </div>
+        <div class="bg-white p-6 card border-b-4 border-red-600">
+            <p class="text-gray-500 text-sm font-medium uppercase">Scadute</p>
+            <p id="statExpired" class="text-3xl font-bold text-gray-800">0</p>
+        </div>
+    </div>
+
+    <!-- AREA AZIONI E TABELLA -->
+    <div class="bg-white p-6 card">
+        <div class="flex flex-col md:flex-row justify-between mb-6 gap-4">
+            <div class="relative md:w-1/3">
+                <input type="text" id="searchBar" oninput="render()" placeholder="Cerca pratica o condominio..." class="w-full border border-gray-300 p-2 pl-10 rounded focus:ring-blue-500">
+                <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-4 h-4"></i>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <input type="file" id="csvIn" class="hidden" onchange="importCSV(event)">
+                <button onclick="document.getElementById('csvIn').click()" class="bg-gray-100 px-4 py-2 border rounded flex items-center hover:bg-gray-200 transition">
+                    <i data-lucide="upload" class="w-4 h-4 mr-2 text-gray-600"></i> Importa CSV
+                </button>
+                <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded flex items-center hover:bg-green-700 transition">
+                    <i data-lucide="download" class="w-4 h-4 mr-2"></i> Esporta CSV
+                </button>
+                <button onclick="openModal()" class="bg-blue-600 text-white px-4 py-2 rounded flex items-center hover:bg-blue-700 transition">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Nuova Pratica
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50 text-gray-600 text-xs uppercase font-bold">
+                    <tr>
+                        <th class="p-4">PI</th>
+                        <th class="p-4">Scadenza</th>
+                        <th class="p-4">Soggetto / Condominio</th>
+                        <th class="p-4">Stato</th>
+                        <th class="p-4 text-right">Azioni</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="text-gray-700 divide-y divide-gray-100"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // CONFIGURAZIONE FIREBASE REALE
+        const firebaseConfig = {
+            apiKey: "AIzaSyB1V1I7lMYKT7_eUTiVEVFZDwPr3V94el8",
+            authDomain: "scadenziario-prince.firebaseapp.com",
+            projectId: "scadenziario-prince",
+            storageBucket: "scadenziario-prince.firebasestorage.app",
+            messagingSenderId: "224799236818",
+            appId: "1:224799236818:web:1fbd60f62f653f97f2030b"
+        };
+
+        let db, user, practices = [];
+
+        async function init() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                const auth = getAuth(app);
+
+                // Tentativo di accesso anonimo
+                try {
+                    await signInAnonymously(auth);
+                } catch (authError) {
+                    showError("Autenticazione Fallita: " + authError.message);
+                    return;
+                }
+
+                onAuthStateChanged(auth, (u) => {
+                    if (u) {
+                        user = u;
+                        setupSync();
+                    }
+                });
+            } catch (error) {
+                showError("Inizializzazione Fallita: " + error.message);
+            }
+        }
+
+        function showError(msg) {
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorDetails').innerText = msg;
+        }
+
+        function setupSync() {
+            if (!user) return;
+            const colRef = collection(db, 'scadenze_pratiche');
+            
+            onSnapshot(colRef, (snap) => {
+                practices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                render();
+            }, (err) => {
+                console.error("Errore Firestore:", err);
+                if (err.code === 'permission-denied') {
+                    showError("Accesso al database negato. Controlla le 'Rules' di Firestore.");
+                }
+            });
+        }
+
+        window.render = () => {
+            const term = document.getElementById('searchBar').value.toLowerCase();
+            const body = document.getElementById('tableBody');
+            const filtered = practices.filter(p => 
+                (p.pi || "").toLowerCase().includes(term) || 
+                (p.entityName || "").toLowerCase().includes(term) ||
+                (p.administrator || "").toLowerCase().includes(term)
+            );
+            
+            body.innerHTML = filtered.map(p => {
+                const diff = Math.ceil((new Date(p.deadline) - new Date()) / 86400000);
+                let badge = diff < 0 ? 'bg-red-100 text-red-800' : (diff <= 60 ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800');
+                let statusText = diff < 0 ? 'SCADUTA' : (diff <= 60 ? 'IN SCADENZA' : 'OK');
+                
+                return `<tr class="hover:bg-gray-50 transition-colors ${diff <= 60 ? 'imminent' : ''}">
+                    <td class="p-4 font-semibold text-blue-900">${p.pi || '-'}</td>
+                    <td class="p-4 font-medium">${(p.deadline || "").split('-').reverse().join('/')}</td>
+                    <td class="p-4">
+                        <div class="font-medium text-gray-900">${p.entityName || '-'}</div>
+                        <div class="text-xs text-gray-500">${p.municipality || ''} - Amm: ${p.administrator || ''}</div>
+                    </td>
+                    <td class="p-4">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold ${badge}">${statusText}</span>
+                    </td>
+                    <td class="p-4 text-right">
+                        <button onclick="edit('${p.id}')" class="text-blue-600 hover:text-blue-800 font-medium mr-3">Modifica</button>
+                        <button onclick="del('${p.id}')" class="text-red-600 hover:text-red-800 font-medium">Elimina</button>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('statTotal').innerText = practices.length;
+            document.getElementById('statExpired').innerText = practices.filter(p => new Date(p.deadline) < new Date().setHours(0,0,0,0)).length;
+            document.getElementById('statImminent').innerText = practices.filter(p => {
+                const d = new Date(p.deadline);
+                const diff = (d - new Date()) / 86400000;
+                return diff >= 0 && diff <= 60;
+            }).length;
+
+            lucide.createIcons();
+        }
+
+        window.openModal = () => { 
+            document.getElementById('practiceForm').reset(); 
+            document.getElementById('practiceId').value = ''; 
+            document.getElementById('modalTitle').innerText = 'Aggiungi Nuova Pratica';
+            document.getElementById('practiceModal').classList.remove('hidden'); 
+        };
+        window.closeModal = () => document.getElementById('practiceModal').classList.add('hidden');
+        
+        window.edit = (id) => {
+            const p = practices.find(x => x.id === id);
+            if (!p) return;
+            document.getElementById('practiceId').value = id;
+            document.getElementById('pi').value = p.pi;
+            document.getElementById('deadline').value = p.deadline;
+            document.getElementById('entityName').value = p.entityName;
+            document.getElementById('municipality').value = p.municipality;
+            document.getElementById('administrator').value = p.administrator;
+            document.getElementById('modalTitle').innerText = 'Modifica Pratica';
+            document.getElementById('practiceModal').classList.remove('hidden');
+        };
+
+        window.del = async (id) => { 
+            if(confirm('Sei sicuro di voler eliminare definitivamente questa pratica?')) {
+                try {
+                    await deleteDoc(doc(db, 'scadenze_pratiche', id)); 
+                } catch (e) { alert("Errore durante l'eliminazione."); }
+            }
+        };
+
+        document.getElementById('practiceForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('practiceId').value;
+            const data = {
+                pi: document.getElementById('pi').value,
+                deadline: document.getElementById('deadline').value,
+                entityName: document.getElementById('entityName').value,
+                municipality: document.getElementById('municipality').value,
+                administrator: document.getElementById('administrator').value,
+                updatedAt: serverTimestamp()
+            };
+
+            try {
+                if(id) await updateDoc(doc(db, 'scadenze_pratiche', id), data);
+                else await addDoc(collection(db, 'scadenze_pratiche'), { ...data, createdAt: serverTimestamp() });
+                closeModal();
+            } catch (err) { 
+                console.error("Errore salvataggio:", err); 
+                alert("Errore nel salvataggio. Verifica di aver creato il Database Firestore."); 
+            }
+        };
+
+        window.exportCSV = () => {
+            const head = "PI,Scadenza,Soggetto,Comune,Amministratore\n";
+            const rows = practices.map(p => `${p.pi},${p.deadline},"${p.entityName}","${p.municipality}","${p.administrator}"`).join('\n');
+            const blob = new Blob(["\ufeff" + head + rows], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'export_scadenze.csv'; a.click();
+        };
+
+        window.importCSV = (e) => {
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const lines = ev.target.result.split('\n').slice(1);
+                const colRef = collection(db, 'scadenze_pratiche');
+                for(let line of lines) {
+                    const c = line.split(',').map(x => x.replace(/"/g, '').trim());
+                    if(c.length >= 5 && c[1].match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        await addDoc(colRef, {
+                            pi: c[0], deadline: c[1], entityName: c[2], municipality: c[3], administrator: c[4], createdAt: serverTimestamp()
+                        });
+                    }
+                }
+            };
+            reader.readAsText(e.target.files[0]);
+        };
+
+        init();
+    </script>
+</body>
+</html>
