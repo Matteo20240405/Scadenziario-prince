@@ -147,7 +147,6 @@
                 db = getFirestore(app);
                 const auth = getAuth(app);
 
-                // Tentativo di accesso anonimo
                 try {
                     await signInAnonymously(auth);
                 } catch (authError) {
@@ -189,14 +188,23 @@
         window.render = () => {
             const term = document.getElementById('searchBar').value.toLowerCase();
             const body = document.getElementById('tableBody');
-            const filtered = practices.filter(p => 
-                (p.pi || "").toLowerCase().includes(term) || 
-                (p.entityName || "").toLowerCase().includes(term) ||
-                (p.administrator || "").toLowerCase().includes(term)
-            );
             
-            body.innerHTML = filtered.map(p => {
-                const diff = Math.ceil((new Date(p.deadline) - new Date()) / 86400000);
+            // FILTRO E ORDINAMENTO
+            const filteredAndSorted = practices
+                .filter(p => 
+                    (p.pi || "").toLowerCase().includes(term) || 
+                    (p.entityName || "").toLowerCase().includes(term) ||
+                    (p.administrator || "").toLowerCase().includes(term)
+                )
+                .sort((a, b) => {
+                    // Mette in alto chi ha la data più piccola (più vicina o passata)
+                    const dateA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+                    const dateB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+                    return dateA - dateB;
+                });
+            
+            body.innerHTML = filteredAndSorted.map(p => {
+                const diff = Math.ceil((new Date(p.deadline) - new Date().setHours(0,0,0,0)) / 86400000);
                 let badge = diff < 0 ? 'bg-red-100 text-red-800' : (diff <= 60 ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800');
                 let statusText = diff < 0 ? 'SCADUTA' : (diff <= 60 ? 'IN SCADENZA' : 'OK');
                 
@@ -221,7 +229,7 @@
             document.getElementById('statExpired').innerText = practices.filter(p => new Date(p.deadline) < new Date().setHours(0,0,0,0)).length;
             document.getElementById('statImminent').innerText = practices.filter(p => {
                 const d = new Date(p.deadline);
-                const diff = (d - new Date()) / 86400000;
+                const diff = (d - new Date().setHours(0,0,0,0)) / 86400000;
                 return diff >= 0 && diff <= 60;
             }).length;
 
