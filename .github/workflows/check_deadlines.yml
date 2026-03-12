@@ -15,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
 
       - name: Install dependencies
         run: npm install firebase-admin @emailjs/nodejs
@@ -27,7 +27,4 @@ jobs:
           EMAILJS_TEMPLATE_ID: ${{ secrets.EMAILJS_TEMPLATE_ID }}
           EMAILJS_PUBLIC_KEY: ${{ secrets.EMAILJS_PUBLIC_KEY }}
           EMAILJS_PRIVATE_KEY: ${{ secrets.EMAILJS_PRIVATE_KEY }}
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-        run: node check_deadlines.jslità
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-        run: node check_deadlines.js   
+        run: node check_deadlines.js
