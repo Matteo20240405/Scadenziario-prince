@@ -1,0 +1,33 @@
+name: Controllo Scadenze Giornaliero
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch: 
+
+jobs:
+  check-deadlines:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install firebase-admin @emailjs/nodejs
+
+      - name: Esegui controllo scadenze
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          EMAILJS_SERVICE_ID: ${{ secrets.EMAILJS_SERVICE_ID }}
+          EMAILJS_TEMPLATE_ID: ${{ secrets.EMAILJS_TEMPLATE_ID }}
+          EMAILJS_PUBLIC_KEY: ${{ secrets.EMAILJS_PUBLIC_KEY }}
+          EMAILJS_PRIVATE_KEY: ${{ secrets.EMAILJS_PRIVATE_KEY }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        run: node check_deadlines.jslità
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        run: node check_deadlines.js
