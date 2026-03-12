@@ -223,28 +223,39 @@
             link.click();
         };
 
-        // --- IMPORT UNIVERSALE (RILEVA VIRGOLA O PUNTO E VIRGOLA) ---
+        // --- IMPORT UNIVERSALE MIGLIORATO ---
         window.importFromExcel = async (event) => {
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = async (e) => {
                 let content = e.target.result;
+                
+                // Rimuove riga sep= se presente
                 if (content.startsWith("sep=")) content = content.substring(content.indexOf("\n") + 1);
 
                 const lines = content.split(/\r?\n/).filter(line => line.trim() !== "");
                 if (lines.length < 2) return;
 
-                // RILEVAMENTO DELIMITATORE
+                // RILEVAMENTO DELIMITATORE (basato sulla testata)
                 const firstLine = lines[0];
-                const semiColons = (firstLine.match(/;/g) || []).length;
-                const commas = (firstLine.match(/,/g) || []).length;
-                const delimiter = semiColons >= commas ? ';' : ',';
+                const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
 
-                const rows = lines.map(line => line.split(delimiter).map(cell => cell.replace(/^"(.*)"$/, '$1').replaceAll('""', '"')));
-                const dataRows = rows.slice(1);
+                // REGEX AVANZATA per dividere le colonne gestendo i doppi apici
+                const parseCSVLine = (text, delim) => {
+                    const regex = new RegExp(`(?:${delim}|\\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^"${delim}\\n\\r]*))`, 'g');
+                    const results = [];
+                    let match;
+                    while ((match = regex.exec(text)) !== null) {
+                        let val = match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2];
+                        results.push(val ? val.trim() : "");
+                    }
+                    return results;
+                };
 
-                if (confirm(`Rilevate ${dataRows.length} righe con separatore '${delimiter}'. Procedere con l'aggiornamento anti-doppioni?`)) {
+                const dataRows = lines.slice(1).map(line => parseCSVLine(line, delimiter));
+
+                if (confirm(`Rilevate ${dataRows.length} righe. Procedere con l'aggiornamento?`)) {
                     const batch = writeBatch(db);
                     let countNew = 0, countUpdate = 0;
 
@@ -261,7 +272,7 @@
                             municipality: row[5] || "",
                             administrator: row[6] || "",
                             adminEmail: row[7] || "",
-                            mailSent60: row[8] === "Inviata",
+                            mailSent60: (row[8] === "Inviata" || row[8] === "true"),
                             updatedAt: serverTimestamp()
                         };
 
@@ -276,6 +287,7 @@
                     }
                     await batch.commit();
                     alert(`Importazione completata!\nNuove: ${countNew}\nAggiornate: ${countUpdate}`);
+                    event.target.value = ""; // Reset input file
                 }
             };
             reader.readAsText(file);
