@@ -10,8 +10,9 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         .card { border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .imminent { background-color: #fffbeb; border-left: 4px solid #F59E0B; }
-        .expired { background-color: #fef2f2; border-left: 4px solid #DC2626; }
+        /* Stili per stati scadenze */
+        .imminent { background-color: #fefce8 !important; border-left: 4px solid #facc15; } /* Giallo */
+        .expired { background-color: #fef2f2 !important; border-left: 4px solid #ef4444; }    /* Rosso */
         #errorMessage { display: none; }
     </style>
 </head>
@@ -123,10 +124,11 @@
                 <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-widest border-b border-gray-100">
                     <tr>
                         <th class="p-4">PI</th>
-                        <th class="p-4">Scadenza</th>
-                        <th class="p-4">Soggetto / Indirizzo</th>
+                        <th class="p-4 text-center">Scadenza</th>
+                        <th class="p-4">Condominio/Ditta</th>
+                        <th class="p-4">Comune</th>
+                        <th class="p-4">Indirizzo</th>
                         <th class="p-4">Attività</th>
-                        <th class="p-4">Email 60gg</th>
                         <th class="p-4 text-right">Azioni</th>
                     </tr>
                 </thead>
@@ -179,26 +181,31 @@
             const filtered = practices.filter(p => 
                 (p.pi || "").toLowerCase().includes(term) || 
                 (p.entityName || "").toLowerCase().includes(term) ||
+                (p.municipality || "").toLowerCase().includes(term) ||
                 (p.address || "").toLowerCase().includes(term)
             ).sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
             
             body.innerHTML = filtered.map(p => {
                 const diff = p.deadline ? Math.ceil((new Date(p.deadline) - new Date().setHours(0,0,0,0)) / 86400000) : 999;
+                
+                // Determinazione classe colore
+                let statusClass = "";
+                if (diff < 0) statusClass = "expired";
+                else if (diff <= 60) statusClass = "imminent";
+
                 const sent = p.mailSent60 === true;
-                return `<tr class="hover:bg-gray-50/50 transition-colors ${diff < 0 ? 'expired' : (diff <= 60 ? 'imminent' : '')}">
+
+                return `<tr class="hover:bg-gray-50/50 transition-colors ${statusClass}">
                     <td class="p-4 font-bold text-gray-900 tracking-tighter">${p.pi ? '#' + p.pi : '-'}</td>
-                    <td class="p-4 font-semibold">${p.deadline ? p.deadline.split('-').reverse().join('/') : '-'}</td>
-                    <td class="p-4">
-                        <div class="font-bold text-gray-800">${p.entityName || 'N.D.'}</div>
-                        <div class="text-[10px] text-gray-400 font-normal uppercase">${p.address || ''}</div>
-                    </td>
-                    <td class="p-4 text-xs font-bold text-blue-700 uppercase tracking-tighter">${p.activity || '-'}</td>
-                    <td class="p-4">
-                        <span class="flex items-center text-[10px] font-black ${sent ? 'text-green-600' : 'text-gray-400'}">
-                            <i data-lucide="${sent ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5 mr-1.5"></i>
-                            ${sent ? 'INVIATA' : 'PROGRAMMATA'}
+                    <td class="p-4 font-bold text-center">
+                        <span class="px-2 py-1 rounded ${statusClass === 'expired' ? 'text-red-700' : (statusClass === 'imminent' ? 'text-yellow-700' : '')}">
+                            ${p.deadline ? p.deadline.split('-').reverse().join('/') : '-'}
                         </span>
                     </td>
+                    <td class="p-4 font-bold text-gray-800">${p.entityName || 'N.D.'}</td>
+                    <td class="p-4 text-xs font-semibold uppercase">${p.municipality || '-'}</td>
+                    <td class="p-4 text-xs text-gray-500 uppercase">${p.address || '-'}</td>
+                    <td class="p-4 text-xs font-bold text-blue-700 uppercase tracking-tighter">${p.activity || '-'}</td>
                     <td class="p-4 text-right">
                         <div class="flex justify-end gap-1">
                             <button onclick="edit('${p.id}')" class="text-blue-600 p-2 hover:bg-blue-100 rounded-lg transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
@@ -212,9 +219,9 @@
 
         // --- EXPORT ---
         window.exportToExcel = () => {
-            const headers = ["PI", "Scadenza", "Condominio_Societa", "Attivita", "Indirizzo", "Comune", "Amministratore", "Email_Amministratore", "Stato_Email_60gg"];
+            const headers = ["PI", "Scadenza", "Condominio_Societa", "Comune", "Indirizzo", "Attivita", "Amministratore", "Email_Amministratore"];
             const excelHeader = "sep=;\n";
-            const rows = practices.map(p => [p.pi||"", p.deadline||"", p.entityName||"", p.activity||"", p.address||"", p.municipality||"", p.administrator||"", p.adminEmail||"", p.mailSent60?"Inviata":"Da inviare"]);
+            const rows = practices.map(p => [p.pi||"", p.deadline||"", p.entityName||"", p.municipality||"", p.address||"", p.activity||"", p.administrator||"", p.adminEmail||""]);
             const csv = excelHeader + [headers, ...rows].map(e => e.map(String).map(v => `"${v.replaceAll('"', '""')}"`).join(";")).join("\n");
             const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
@@ -223,25 +230,28 @@
             link.click();
         };
 
-        // --- IMPORT UNIVERSALE MIGLIORATO ---
+        // --- BACKUP JSON ---
+        window.exportData = () => {
+            const dataStr = JSON.stringify(practices, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `backup_safecheck_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+        };
+
+        // --- IMPORT ---
         window.importFromExcel = async (event) => {
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = async (e) => {
                 let content = e.target.result;
-                
-                // Rimuove riga sep= se presente
                 if (content.startsWith("sep=")) content = content.substring(content.indexOf("\n") + 1);
-
                 const lines = content.split(/\r?\n/).filter(line => line.trim() !== "");
                 if (lines.length < 2) return;
-
-                // RILEVAMENTO DELIMITATORE (basato sulla testata)
                 const firstLine = lines[0];
                 const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
-
-                // REGEX AVANZATA per dividere le colonne gestendo i doppi apici
                 const parseCSVLine = (text, delim) => {
                     const regex = new RegExp(`(?:${delim}|\\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^"${delim}\\n\\r]*))`, 'g');
                     const results = [];
@@ -252,30 +262,25 @@
                     }
                     return results;
                 };
-
                 const dataRows = lines.slice(1).map(line => parseCSVLine(line, delimiter));
-
                 if (confirm(`Rilevate ${dataRows.length} righe. Procedere con l'aggiornamento?`)) {
                     const batch = writeBatch(db);
                     let countNew = 0, countUpdate = 0;
-
                     for (const row of dataRows) {
                         const piCode = row[0] ? row[0].trim() : null;
                         if (!piCode) continue;
-
                         const practiceData = {
                             pi: piCode,
                             deadline: row[1] || "",
                             entityName: row[2] || "",
-                            activity: row[3] || "",
+                            municipality: row[3] || "",
                             address: row[4] || "",
-                            municipality: row[5] || "",
+                            activity: row[5] || "",
                             administrator: row[6] || "",
                             adminEmail: row[7] || "",
-                            mailSent60: (row[8] === "Inviata" || row[8] === "true"),
+                            mailSent60: false,
                             updatedAt: serverTimestamp()
                         };
-
                         const existing = practices.find(p => p.pi === piCode);
                         if (existing) {
                             batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
@@ -287,7 +292,7 @@
                     }
                     await batch.commit();
                     alert(`Importazione completata!\nNuove: ${countNew}\nAggiornate: ${countUpdate}`);
-                    event.target.value = ""; // Reset input file
+                    event.target.value = ""; 
                 }
             };
             reader.readAsText(file);
@@ -322,7 +327,7 @@
                 administrator: document.getElementById('administrator').value || null,
                 adminEmail: document.getElementById('adminEmail').value || null,
                 municipality: document.getElementById('municipality').value || null,
-                mailSent60: false,
+                mailSent60: false, 
                 updatedAt: serverTimestamp()
             };
             if(id) await updateDoc(doc(db, 'scadenze_pratiche', id), data);
@@ -332,4 +337,4 @@
         init();
     </script>
 </body>
-</html>
+</html>>
