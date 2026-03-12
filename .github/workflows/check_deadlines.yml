@@ -9,6 +9,7 @@ jobs:
   check-deadlines:
     runs-on: ubuntu-latest
     env:
+      # Forza l'uso di Node.js 24 per tutte le JavaScript Actions nel workflow
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
     steps:
       - name: Checkout repository
