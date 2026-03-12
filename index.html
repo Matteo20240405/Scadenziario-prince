@@ -92,7 +92,6 @@
             <p class="text-gray-500 mt-1 font-medium italic">Gestione Integrata Sheet & Cloud</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <!-- Pulsanti Sheet -->
             <button onclick="exportToExcel()" class="flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition shadow-sm">
                 <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Sheet
             </button>
@@ -101,28 +100,11 @@
                 <input type="file" id="importExcelFile" class="hidden" accept=".csv" onchange="importFromExcel(event)">
             </label>
             <div class="w-px h-6 bg-gray-300 mx-1"></div>
-            <!-- Pulsanti JSON Backup -->
             <button onclick="exportData()" class="flex items-center px-3 py-1.5 bg-gray-100 text-gray-500 text-xs font-bold rounded-lg hover:bg-gray-200 transition border border-gray-200">
                 <i data-lucide="database" class="w-4 h-4 mr-1.5"></i> Backup JSON
             </button>
         </div>
     </header>
-
-    <!-- STATS -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div class="bg-white p-6 card border-b-4 border-blue-500">
-            <p class="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Totale Pratiche</p>
-            <p id="statTotal" class="text-4xl font-black text-gray-800 tracking-tighter">0</p>
-        </div>
-        <div class="bg-white p-6 card border-b-4 border-amber-500">
-            <p class="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">In Scadenza (60gg)</p>
-            <p id="statImminent" class="text-4xl font-black text-gray-800 tracking-tighter">0</p>
-        </div>
-        <div class="bg-white p-6 card border-b-4 border-blue-600">
-            <p class="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Email Inviate</p>
-            <p id="statSent" class="text-4xl font-black text-gray-800 tracking-tighter">0</p>
-        </div>
-    </div>
 
     <!-- TABELLA -->
     <div class="bg-white card overflow-hidden border border-gray-100">
@@ -194,7 +176,6 @@
         window.render = () => {
             const term = document.getElementById('searchBar').value.toLowerCase();
             const body = document.getElementById('tableBody');
-            
             const filtered = practices.filter(p => 
                 (p.pi || "").toLowerCase().includes(term) || 
                 (p.entityName || "").toLowerCase().includes(term) ||
@@ -204,13 +185,12 @@
             body.innerHTML = filtered.map(p => {
                 const diff = p.deadline ? Math.ceil((new Date(p.deadline) - new Date().setHours(0,0,0,0)) / 86400000) : 999;
                 const sent = p.mailSent60 === true;
-
                 return `<tr class="hover:bg-gray-50/50 transition-colors ${diff < 0 ? 'expired' : (diff <= 60 ? 'imminent' : '')}">
                     <td class="p-4 font-bold text-gray-900 tracking-tighter">${p.pi ? '#' + p.pi : '-'}</td>
                     <td class="p-4 font-semibold">${p.deadline ? p.deadline.split('-').reverse().join('/') : '-'}</td>
                     <td class="p-4">
                         <div class="font-bold text-gray-800">${p.entityName || 'N.D.'}</div>
-                        <div class="text-[10px] text-gray-400 font-normal uppercase">${p.address || ''} - ${p.municipality || ''}</div>
+                        <div class="text-[10px] text-gray-400 font-normal uppercase">${p.address || ''}</div>
                     </td>
                     <td class="p-4 text-xs font-bold text-blue-700 uppercase tracking-tighter">${p.activity || '-'}</td>
                     <td class="p-4">
@@ -227,49 +207,44 @@
                     </td>
                 </tr>`;
             }).join('');
-
-            document.getElementById('statTotal').innerText = practices.length;
-            document.getElementById('statSent').innerText = practices.filter(p => p.mailSent60 === true).length;
-            document.getElementById('statImminent').innerText = practices.filter(p => {
-                const d = (new Date(p.deadline) - new Date().setHours(0,0,0,0)) / 86400000;
-                return d >= 0 && d <= 60;
-            }).length;
             lucide.createIcons();
         }
 
-        // --- EXPORT SHEET (CSV) ---
+        // --- EXPORT ---
         window.exportToExcel = () => {
-            if (practices.length === 0) return alert("Nessun dato da esportare.");
             const headers = ["PI", "Scadenza", "Condominio_Societa", "Attivita", "Indirizzo", "Comune", "Amministratore", "Email_Amministratore", "Stato_Email_60gg"];
-            const rows = practices.map(p => [
-                p.pi || "", p.deadline || "", p.entityName || "", p.activity || "",
-                p.address || "", p.municipality || "", p.administrator || "", p.adminEmail || "",
-                p.mailSent60 ? "Inviata" : "Da inviare"
-            ]);
-            const csvContent = [headers, ...rows].map(e => e.map(String).map(v => v.replaceAll('"', '""')).map(v => `"${v}"`).join(";")).join("\n");
-            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
+            const excelHeader = "sep=;\n";
+            const rows = practices.map(p => [p.pi||"", p.deadline||"", p.entityName||"", p.activity||"", p.address||"", p.municipality||"", p.administrator||"", p.adminEmail||"", p.mailSent60?"Inviata":"Da inviare"]);
+            const csv = excelHeader + [headers, ...rows].map(e => e.map(String).map(v => `"${v.replaceAll('"', '""')}"`).join(";")).join("\n");
+            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
-            link.href = url;
-            link.download = `foglio_pratiche_fire_${new Date().toISOString().split('T')[0]}.csv`;
+            link.href = URL.createObjectURL(blob);
+            link.download = `export_fire_${new Date().toISOString().split('T')[0]}.csv`;
             link.click();
         };
 
-        // --- IMPORT SHEET (LOGICA ANTI-DOPPIONI) ---
+        // --- IMPORT UNIVERSALE (RILEVA VIRGOLA O PUNTO E VIRGOLA) ---
         window.importFromExcel = async (event) => {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = async (e) => {
-                const content = e.target.result;
-                const lines = content.split(/\r?\n/).filter(line => line.trim() !== "");
-                if (lines.length < 2) return alert("Il file sembra vuoto.");
+                let content = e.target.result;
+                if (content.startsWith("sep=")) content = content.substring(content.indexOf("\n") + 1);
 
-                const rows = lines.map(line => line.split(';').map(cell => cell.replace(/^"(.*)"$/, '$1').replaceAll('""', '"')));
+                const lines = content.split(/\r?\n/).filter(line => line.trim() !== "");
+                if (lines.length < 2) return;
+
+                // RILEVAMENTO DELIMITATORE
+                const firstLine = lines[0];
+                const semiColons = (firstLine.match(/;/g) || []).length;
+                const commas = (firstLine.match(/,/g) || []).length;
+                const delimiter = semiColons >= commas ? ';' : ',';
+
+                const rows = lines.map(line => line.split(delimiter).map(cell => cell.replace(/^"(.*)"$/, '$1').replaceAll('""', '"')));
                 const dataRows = rows.slice(1);
 
-                if (confirm(`Rilevate ${dataRows.length} righe. Il sistema controllerà i PI per evitare doppioni. Procedere?`)) {
+                if (confirm(`Rilevate ${dataRows.length} righe con separatore '${delimiter}'. Procedere con l'aggiornamento anti-doppioni?`)) {
                     const batch = writeBatch(db);
                     let countNew = 0, countUpdate = 0;
 
@@ -290,47 +265,24 @@
                             updatedAt: serverTimestamp()
                         };
 
-                        // LOGICA ANTI-DOPPIONE: Controllo se il PI esiste già in memoria (practices)
                         const existing = practices.find(p => p.pi === piCode);
-                        
                         if (existing) {
-                            // Se esiste, aggiorna il documento esistente (stesso ID Firebase)
                             batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
                             countUpdate++;
                         } else {
-                            // Se non esiste, crea un nuovo documento
                             batch.set(doc(collection(db, 'scadenze_pratiche')), practiceData);
                             countNew++;
                         }
                     }
                     await batch.commit();
-                    alert(`Operazione completata con successo!\n\nPratiche Nuove: ${countNew}\nPratiche Aggiornate: ${countUpdate}\nDoppioni evitati: ${countUpdate}`);
-                    event.target.value = ""; 
+                    alert(`Importazione completata!\nNuove: ${countNew}\nAggiornate: ${countUpdate}`);
                 }
             };
             reader.readAsText(file);
         };
 
-        // --- JSON BACKUP ---
-        window.exportData = () => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(practices, null, 2));
-            const dl = document.createElement('a');
-            dl.href = dataStr;
-            dl.download = `backup_firebase_${new Date().toISOString().split('T')[0]}.json`;
-            dl.click();
-        };
-
-        // --- GESTIONE MODALE ---
-        window.openModal = () => { 
-            document.getElementById('practiceForm').reset(); 
-            document.getElementById('practiceId').value = ''; 
-            document.getElementById('mailSent60').value = 'false';
-            document.getElementById('modalTitle').innerText = 'Nuova Pratica';
-            document.getElementById('practiceModal').classList.remove('hidden'); 
-        };
-        
+        window.openModal = () => { document.getElementById('practiceForm').reset(); document.getElementById('practiceId').value = ''; document.getElementById('modalTitle').innerText = 'Nuova Pratica'; document.getElementById('practiceModal').classList.remove('hidden'); };
         window.closeModal = () => document.getElementById('practiceModal').classList.add('hidden');
-
         window.edit = (id) => {
             const p = practices.find(x => x.id === id);
             document.getElementById('practiceId').value = id;
@@ -342,13 +294,10 @@
             document.getElementById('administrator').value = p.administrator || '';
             document.getElementById('adminEmail').value = p.adminEmail || '';
             document.getElementById('municipality').value = p.municipality || '';
-            document.getElementById('mailSent60').value = p.mailSent60 || 'false';
             document.getElementById('modalTitle').innerText = 'Modifica Pratica';
             document.getElementById('practiceModal').classList.remove('hidden');
         };
-
-        window.del = async (id) => { if(confirm('Eliminare definitivamente?')) await deleteDoc(doc(db, 'scadenze_pratiche', id)); };
-
+        window.del = async (id) => { if(confirm('Eliminare?')) await deleteDoc(doc(db, 'scadenze_pratiche', id)); };
         document.getElementById('practiceForm').onsubmit = async (e) => {
             e.preventDefault();
             const id = document.getElementById('practiceId').value;
@@ -361,14 +310,13 @@
                 administrator: document.getElementById('administrator').value || null,
                 adminEmail: document.getElementById('adminEmail').value || null,
                 municipality: document.getElementById('municipality').value || null,
-                mailSent60: document.getElementById('mailSent60').value === 'true',
+                mailSent60: false,
                 updatedAt: serverTimestamp()
             };
             if(id) await updateDoc(doc(db, 'scadenze_pratiche', id), data);
             else await addDoc(collection(db, 'scadenze_pratiche'), data);
             closeModal();
         };
-
         init();
     </script>
 </body>
