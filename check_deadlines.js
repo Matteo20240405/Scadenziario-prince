@@ -3,7 +3,7 @@ const emailjs = require('@emailjs/nodejs');
 
 /**
  * SCRIPT DI AUTOMAZIONE - POSIZIONE: Root
- * Risoluzione errore 403: Richiede attivazione "Non-browser environments" su EmailJS.
+ * Gestione Errore 412: Riconnessione account Gmail su EmailJS.
  */
 async function checkAndSendEmails() {
   try {
@@ -104,7 +104,9 @@ async function checkAndSendEmails() {
       } catch (mailError) {
         console.error(`❌ Errore EmailJS: ${mailError.status} - ${mailError.text}`);
         
-        if (mailError.status === 403) {
+        if (mailError.status === 412) {
+          console.error("💡 AZIONE RICHIESTA: Il collegamento Gmail è scaduto o non autorizzato. Vai su EmailJS -> Email Services e clicca su RECONNECT per autorizzare nuovamente l'account Google.");
+        } else if (mailError.status === 403) {
           console.error("💡 NOTA: Devi abilitare 'API access from non-browser environments' nelle impostazioni di sicurezza di EmailJS.");
         }
         
