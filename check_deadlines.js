@@ -3,7 +3,7 @@ const emailjs = require('@emailjs/nodejs');
 
 /**
  * SCRIPT DI AUTOMAZIONE - POSIZIONE: Root
- * Versione con debug granulare per risolvere il problema dell'errore "undefined".
+ * Risoluzione errore 403: Richiede attivazione "Non-browser environments" su EmailJS.
  */
 async function checkAndSendEmails() {
   try {
@@ -40,7 +40,7 @@ async function checkAndSendEmails() {
     targetDate.setDate(targetDate.getDate() + 60);
     const targetStr = targetDate.toISOString().split('T')[0];
 
-    console.log(`Ricerca pratiche che scadono esattamente il: ${targetStr}`);
+    console.log(`Ricerca pratiche che scadono il: ${targetStr}`);
 
     // 4. Query al database
     const snapshot = await db.collection('scadenze_pratiche')
@@ -49,22 +49,21 @@ async function checkAndSendEmails() {
       .get();
 
     if (snapshot.empty) {
-      console.log("ℹ️ Nessuna pratica trovata per questa data che richieda l'invio.");
+      console.log("ℹ️ Nessuna pratica da notificare per oggi.");
       return;
     }
 
-    console.log(`Trovate ${snapshot.size} pratiche da notificare. Avvio invio individuale...`);
+    console.log(`Trovate ${snapshot.size} pratiche. Inizio invio email...`);
 
     // 5. Ciclo di invio
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
       const docId = docSnapshot.id;
       
-      console.log(`Processando pratica ID: ${docId} (${data.entityName || 'Senza Nome'})`);
+      console.log(`\n--- Elaborazione: ${data.entityName || 'Senza Nome'} ---`);
       
-      // Controllo dati minimi per EmailJS
       if (!data.adminEmail || data.adminEmail.trim() === "") {
-        console.warn(`⚠️ Salto pratica ${docId}: Email amministratore mancante.`);
+        console.warn(`⚠️ Salto: Email amministratore mancante.`);
         continue;
       }
 
@@ -80,9 +79,8 @@ async function checkAndSendEmails() {
       };
 
       try {
-        console.log(`Chiamata a EmailJS per: ${templateParams.to_email}`);
+        console.log(`Invio a EmailJS per: ${templateParams.to_email}...`);
         
-        // Eseguiamo l'invio
         const response = await emailjs.send(
           process.env.EMAILJS_SERVICE_ID,
           process.env.EMAILJS_TEMPLATE_ID,
@@ -93,40 +91,34 @@ async function checkAndSendEmails() {
           }
         );
 
-        console.log(`✅ Risposta EmailJS per ${docId}: ${response.status} - ${response.text}`);
+        console.log(`✅ Successo! Status: ${response.status}`);
 
-        // 6. Aggiornamento Database solo se l'invio è riuscito
+        // 6. Aggiornamento Database
         await db.collection('scadenze_pratiche').doc(docId).update({
           mailSent60: true,
           lastEmailSentAt: admin.firestore.FieldValue.serverTimestamp()
         });
         
-        console.log(`✅ Database aggiornato: mailSent60 = true per ${docId}`);
+        console.log(`✅ Firebase aggiornato per ${docId}`);
 
       } catch (mailError) {
-        // Se l'errore è undefined, cerchiamo di estrarre più info possibili
-        console.error(`❌ ERRORE DURANTE L'INVIO PER ${docId}:`);
+        console.error(`❌ Errore EmailJS: ${mailError.status} - ${mailError.text}`);
         
-        if (mailError && typeof mailError === 'object') {
-          console.error("Dettagli errore:", JSON.stringify(mailError));
-          if (mailError.text) console.error("Messaggio Server:", mailError.text);
-        } else {
-          console.error("L'errore restituito è nullo o non identificato.");
+        if (mailError.status === 403) {
+          console.error("💡 NOTA: Devi abilitare 'API access from non-browser environments' nelle impostazioni di sicurezza di EmailJS.");
         }
         
-        // Non blocchiamo il ciclo per una singola mail fallita, ma segnaliamo l'errore
         throw mailError; 
       }
     }
 
-    console.log("--- PROCESSO TERMINATO ---");
+    console.log("\n--- PROCESSO COMPLETATO CON SUCCESSO ---");
 
   } catch (error) {
-    console.error("❌ ERRORE CRITICO DI SISTEMA:");
+    console.error("\n❌ ERRORE CRITICO:");
     console.error(error);
     process.exit(1); 
   }
 }
 
-// Esecuzione
 checkAndSendEmails();
