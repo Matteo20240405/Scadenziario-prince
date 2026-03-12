@@ -5,7 +5,7 @@ on:
     - cron: '0 8 * * *'
   workflow_dispatch: 
 
-# Impostazione globale per forzare Node.js 24 su tutte le azioni del workflow
+# Impostazione globale per forzare Node.js 24
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
@@ -20,9 +20,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install firebase-admin @emailjs/nodejs
+        run: |
+          npm install firebase-admin @emailjs/nodejs
+          
+      - name: Verifica file
+        run: ls -R
 
       - name: Esegui controllo scadenze
         env:
