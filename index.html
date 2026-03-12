@@ -3,123 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scadenziario Pratiche Prevenzione Incendi</title>
-    <!-- Tailwind CSS -->
+    <title>SafeCheck Fire - Gestione Sheet</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         .card { border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .imminent { background-color: #fef3c7; border-left: 4px solid #F59E0B; }
+        .imminent { background-color: #fffbeb; border-left: 4px solid #F59E0B; }
+        .expired { background-color: #fef2f2; border-left: 4px solid #DC2626; }
         #errorMessage { display: none; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-4 md:p-8 text-gray-800">
 
-    <!-- MESSAGGIO DI ERRORE CRITICO -->
+    <!-- Messaggio Errore -->
     <div id="errorMessage" class="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 card">
-        <p class="font-bold">Errore di Configurazione Firebase</p>
+        <p class="font-bold text-lg">Errore di Configurazione</p>
         <p id="errorDetails" class="text-sm"></p>
-        <p class="text-xs mt-2 italic">Assicurati di aver attivato "Anonymous Sign-in" in Build > Authentication > Sign-in method nella console di Firebase.</p>
     </div>
 
-    <!-- MODALE AGGIUNTA/MODIFICA -->
-    <div id="practiceModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white w-full max-w-lg p-6 card">
-            <h2 id="modalTitle" class="text-2xl font-bold mb-4 text-gray-800">Gestione Pratica</h2>
+    <!-- MODALE GESTIONE PRATICA -->
+    <div id="practiceModal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white w-full max-w-lg p-6 card max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="modalTitle" class="text-2xl font-bold text-gray-800">Gestione Pratica</h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
+            </div>
             <form id="practiceForm" class="space-y-4">
                 <input type="hidden" id="practiceId">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">PI</label>
-                        <input type="text" id="pi" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Codice PI</label>
+                        <input type="text" id="pi" placeholder="Es. 12345" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Scadenza</label>
-                        <input type="date" id="deadline" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Scadenza</label>
+                        <input type="date" id="deadline" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Condominio/Società</label>
-                    <input type="text" id="entityName" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Condominio / Società</label>
+                    <input type="text" id="entityName" placeholder="Nome del condominio" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Attività</label>
+                    <input type="text" id="activity" placeholder="Es. Autorimessa, Centrale Termica, ecc." class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Comune</label>
-                        <input type="text" id="municipality" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Indirizzo</label>
+                        <input type="text" id="address" placeholder="Via/Piazza e civico" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Amministratore</label>
-                        <input type="text" id="administrator" required class="w-full border border-gray-300 p-2 rounded focus:ring-blue-500">
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Comune</label>
+                        <input type="text" id="municipality" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
                 </div>
-                <div class="flex justify-end space-x-3 mt-6">
-                    <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-200 rounded text-gray-700 hover:bg-gray-300">Annulla</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Salva Pratica</button>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Amministratore</label>
+                        <input type="text" id="administrator" placeholder="Nome" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Email Amministratore</label>
+                        <input type="email" id="adminEmail" placeholder="mail@esempio.it" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+                <input type="hidden" id="mailSent60" value="false">
+
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeModal()" class="px-5 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition">Annulla</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Salva Pratica</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- HEADER -->
-    <header class="mb-6 p-6 bg-white card">
-        <h1 class="text-3xl font-bold text-gray-800 flex items-center">
-            <i data-lucide="calendar-check" class="mr-3 text-blue-600"></i>
-            Scadenziario Prevenzione Incendi
-        </h1>
+    <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-black text-gray-900 flex items-center">
+                <span class="bg-blue-600 p-2 rounded-lg mr-3 shadow-lg shadow-blue-200">
+                    <i data-lucide="shield-check" class="text-white w-8 h-8"></i>
+                </span>
+                SafeCheck <span class="text-blue-600 ml-2 italic">Fire</span>
+            </h1>
+            <p class="text-gray-500 mt-1 font-medium italic">Gestione Integrata Sheet & Cloud</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- Pulsanti Sheet -->
+            <button onclick="exportToExcel()" class="flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition shadow-sm">
+                <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Sheet
+            </button>
+            <label class="flex items-center px-3 py-1.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-200 cursor-pointer transition border border-emerald-200">
+                <i data-lucide="file-up" class="w-4 h-4 mr-1.5"></i> Importa Sheet
+                <input type="file" id="importExcelFile" class="hidden" accept=".csv" onchange="importFromExcel(event)">
+            </label>
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+            <!-- Pulsanti JSON Backup -->
+            <button onclick="exportData()" class="flex items-center px-3 py-1.5 bg-gray-100 text-gray-500 text-xs font-bold rounded-lg hover:bg-gray-200 transition border border-gray-200">
+                <i data-lucide="database" class="w-4 h-4 mr-1.5"></i> Backup JSON
+            </button>
+        </div>
     </header>
 
-    <!-- DASHBOARD STATISTICHE -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div class="bg-white p-6 card border-b-4 border-blue-600">
-            <p class="text-gray-500 text-sm font-medium uppercase">Totale Pratiche</p>
-            <p id="statTotal" class="text-3xl font-bold text-gray-800">0</p>
+    <!-- STATS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white p-6 card border-b-4 border-blue-500">
+            <p class="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Totale Pratiche</p>
+            <p id="statTotal" class="text-4xl font-black text-gray-800 tracking-tighter">0</p>
         </div>
         <div class="bg-white p-6 card border-b-4 border-amber-500">
-            <p class="text-gray-500 text-sm font-medium uppercase">In Scadenza (60gg)</p>
-            <p id="statImminent" class="text-3xl font-bold text-gray-800">0</p>
+            <p class="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">In Scadenza (60gg)</p>
+            <p id="statImminent" class="text-4xl font-black text-gray-800 tracking-tighter">0</p>
         </div>
-        <div class="bg-white p-6 card border-b-4 border-red-600">
-            <p class="text-gray-500 text-sm font-medium uppercase">Scadute</p>
-            <p id="statExpired" class="text-3xl font-bold text-gray-800">0</p>
+        <div class="bg-white p-6 card border-b-4 border-blue-600">
+            <p class="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Email Inviate</p>
+            <p id="statSent" class="text-4xl font-black text-gray-800 tracking-tighter">0</p>
         </div>
     </div>
 
-    <!-- AREA AZIONI E TABELLA -->
-    <div class="bg-white p-6 card">
-        <div class="flex flex-col md:flex-row justify-between mb-6 gap-4">
-            <div class="relative md:w-1/3">
-                <input type="text" id="searchBar" oninput="render()" placeholder="Cerca pratica o condominio..." class="w-full border border-gray-300 p-2 pl-10 rounded focus:ring-blue-500">
-                <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-4 h-4"></i>
+    <!-- TABELLA -->
+    <div class="bg-white card overflow-hidden border border-gray-100">
+        <div class="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50/30">
+            <div class="relative w-full md:w-96">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" id="searchBar" oninput="render()" placeholder="Cerca..." class="w-full bg-white border border-gray-200 py-2.5 pl-10 pr-4 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
             </div>
-            <div class="flex flex-wrap gap-2">
-                <input type="file" id="csvIn" class="hidden" onchange="importCSV(event)">
-                <button onclick="document.getElementById('csvIn').click()" class="bg-gray-100 px-4 py-2 border rounded flex items-center hover:bg-gray-200 transition">
-                    <i data-lucide="upload" class="w-4 h-4 mr-2 text-gray-600"></i> Importa CSV
-                </button>
-                <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded flex items-center hover:bg-green-700 transition">
-                    <i data-lucide="download" class="w-4 h-4 mr-2"></i> Esporta CSV
-                </button>
-                <button onclick="openModal()" class="bg-blue-600 text-white px-4 py-2 rounded flex items-center hover:bg-blue-700 transition">
-                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Nuova Pratica
-                </button>
-            </div>
+            <button onclick="openModal()" class="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition flex items-center justify-center shadow-lg shadow-blue-200">
+                <i data-lucide="plus" class="w-5 h-5 mr-2"></i> Nuova Pratica
+            </button>
         </div>
 
         <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead class="bg-gray-50 text-gray-600 text-xs uppercase font-bold">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-widest border-b border-gray-100">
                     <tr>
                         <th class="p-4">PI</th>
                         <th class="p-4">Scadenza</th>
-                        <th class="p-4">Soggetto / Condominio</th>
-                        <th class="p-4">Stato</th>
+                        <th class="p-4">Soggetto / Indirizzo</th>
+                        <th class="p-4">Attività</th>
+                        <th class="p-4">Email 60gg</th>
                         <th class="p-4 text-right">Azioni</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody" class="text-gray-700 divide-y divide-gray-100"></tbody>
+                <tbody id="tableBody" class="divide-y divide-gray-100 italic"></tbody>
             </table>
         </div>
     </div>
@@ -127,9 +156,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // CONFIGURAZIONE FIREBASE REALE
         const firebaseConfig = {
             apiKey: "AIzaSyB1V1I7lMYKT7_eUTiVEVFZDwPr3V94el8",
             authDomain: "scadenziario-prince.firebaseapp.com",
@@ -139,30 +167,16 @@
             appId: "1:224799236818:web:1fbd60f62f653f97f2030b"
         };
 
-        let db, user, practices = [];
+        let db, practices = [];
 
         async function init() {
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 const auth = getAuth(app);
-
-                try {
-                    await signInAnonymously(auth);
-                } catch (authError) {
-                    showError("Autenticazione Fallita: " + authError.message);
-                    return;
-                }
-
-                onAuthStateChanged(auth, (u) => {
-                    if (u) {
-                        user = u;
-                        setupSync();
-                    }
-                });
-            } catch (error) {
-                showError("Inizializzazione Fallita: " + error.message);
-            }
+                await signInAnonymously(auth);
+                onAuthStateChanged(auth, u => { if(u) setupSync(); });
+            } catch (e) { showError(e.message); }
         }
 
         function showError(msg) {
@@ -171,17 +185,9 @@
         }
 
         function setupSync() {
-            if (!user) return;
-            const colRef = collection(db, 'scadenze_pratiche');
-            
-            onSnapshot(colRef, (snap) => {
+            onSnapshot(collection(db, 'scadenze_pratiche'), snap => {
                 practices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 render();
-            }, (err) => {
-                console.error("Errore Firestore:", err);
-                if (err.code === 'permission-denied') {
-                    showError("Accesso al database negato. Controlla le 'Rules' di Firestore.");
-                }
             });
         }
 
@@ -189,128 +195,178 @@
             const term = document.getElementById('searchBar').value.toLowerCase();
             const body = document.getElementById('tableBody');
             
-            // FILTRO E ORDINAMENTO
-            const filteredAndSorted = practices
-                .filter(p => 
-                    (p.pi || "").toLowerCase().includes(term) || 
-                    (p.entityName || "").toLowerCase().includes(term) ||
-                    (p.administrator || "").toLowerCase().includes(term)
-                )
-                .sort((a, b) => {
-                    // Mette in alto chi ha la data più piccola (più vicina o passata)
-                    const dateA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-                    const dateB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-                    return dateA - dateB;
-                });
+            const filtered = practices.filter(p => 
+                (p.pi || "").toLowerCase().includes(term) || 
+                (p.entityName || "").toLowerCase().includes(term) ||
+                (p.address || "").toLowerCase().includes(term)
+            ).sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
             
-            body.innerHTML = filteredAndSorted.map(p => {
-                const diff = Math.ceil((new Date(p.deadline) - new Date().setHours(0,0,0,0)) / 86400000);
-                let badge = diff < 0 ? 'bg-red-100 text-red-800' : (diff <= 60 ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800');
-                let statusText = diff < 0 ? 'SCADUTA' : (diff <= 60 ? 'IN SCADENZA' : 'OK');
-                
-                return `<tr class="hover:bg-gray-50 transition-colors ${diff <= 60 ? 'imminent' : ''}">
-                    <td class="p-4 font-semibold text-blue-900">${p.pi || '-'}</td>
-                    <td class="p-4 font-medium">${(p.deadline || "").split('-').reverse().join('/')}</td>
+            body.innerHTML = filtered.map(p => {
+                const diff = p.deadline ? Math.ceil((new Date(p.deadline) - new Date().setHours(0,0,0,0)) / 86400000) : 999;
+                const sent = p.mailSent60 === true;
+
+                return `<tr class="hover:bg-gray-50/50 transition-colors ${diff < 0 ? 'expired' : (diff <= 60 ? 'imminent' : '')}">
+                    <td class="p-4 font-bold text-gray-900 tracking-tighter">${p.pi ? '#' + p.pi : '-'}</td>
+                    <td class="p-4 font-semibold">${p.deadline ? p.deadline.split('-').reverse().join('/') : '-'}</td>
                     <td class="p-4">
-                        <div class="font-medium text-gray-900">${p.entityName || '-'}</div>
-                        <div class="text-xs text-gray-500">${p.municipality || ''} - Amm: ${p.administrator || ''}</div>
+                        <div class="font-bold text-gray-800">${p.entityName || 'N.D.'}</div>
+                        <div class="text-[10px] text-gray-400 font-normal uppercase">${p.address || ''} - ${p.municipality || ''}</div>
                     </td>
+                    <td class="p-4 text-xs font-bold text-blue-700 uppercase tracking-tighter">${p.activity || '-'}</td>
                     <td class="p-4">
-                        <span class="px-2.5 py-1 rounded-full text-xs font-bold ${badge}">${statusText}</span>
+                        <span class="flex items-center text-[10px] font-black ${sent ? 'text-green-600' : 'text-gray-400'}">
+                            <i data-lucide="${sent ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5 mr-1.5"></i>
+                            ${sent ? 'INVIATA' : 'PROGRAMMATA'}
+                        </span>
                     </td>
                     <td class="p-4 text-right">
-                        <button onclick="edit('${p.id}')" class="text-blue-600 hover:text-blue-800 font-medium mr-3">Modifica</button>
-                        <button onclick="del('${p.id}')" class="text-red-600 hover:text-red-800 font-medium">Elimina</button>
+                        <div class="flex justify-end gap-1">
+                            <button onclick="edit('${p.id}')" class="text-blue-600 p-2 hover:bg-blue-100 rounded-lg transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="del('${p.id}')" class="text-red-600 p-2 hover:bg-red-100 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
                     </td>
                 </tr>`;
             }).join('');
 
             document.getElementById('statTotal').innerText = practices.length;
-            document.getElementById('statExpired').innerText = practices.filter(p => new Date(p.deadline) < new Date().setHours(0,0,0,0)).length;
+            document.getElementById('statSent').innerText = practices.filter(p => p.mailSent60 === true).length;
             document.getElementById('statImminent').innerText = practices.filter(p => {
-                const d = new Date(p.deadline);
-                const diff = (d - new Date().setHours(0,0,0,0)) / 86400000;
-                return diff >= 0 && diff <= 60;
+                const d = (new Date(p.deadline) - new Date().setHours(0,0,0,0)) / 86400000;
+                return d >= 0 && d <= 60;
             }).length;
-
             lucide.createIcons();
         }
 
+        // --- EXPORT SHEET (CSV) ---
+        window.exportToExcel = () => {
+            if (practices.length === 0) return alert("Nessun dato da esportare.");
+            const headers = ["PI", "Scadenza", "Condominio_Societa", "Attivita", "Indirizzo", "Comune", "Amministratore", "Email_Amministratore", "Stato_Email_60gg"];
+            const rows = practices.map(p => [
+                p.pi || "", p.deadline || "", p.entityName || "", p.activity || "",
+                p.address || "", p.municipality || "", p.administrator || "", p.adminEmail || "",
+                p.mailSent60 ? "Inviata" : "Da inviare"
+            ]);
+            const csvContent = [headers, ...rows].map(e => e.map(String).map(v => v.replaceAll('"', '""')).map(v => `"${v}"`).join(";")).join("\n");
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `foglio_pratiche_fire_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        };
+
+        // --- IMPORT SHEET (LOGICA ANTI-DOPPIONI) ---
+        window.importFromExcel = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result;
+                const lines = content.split(/\r?\n/).filter(line => line.trim() !== "");
+                if (lines.length < 2) return alert("Il file sembra vuoto.");
+
+                const rows = lines.map(line => line.split(';').map(cell => cell.replace(/^"(.*)"$/, '$1').replaceAll('""', '"')));
+                const dataRows = rows.slice(1);
+
+                if (confirm(`Rilevate ${dataRows.length} righe. Il sistema controllerà i PI per evitare doppioni. Procedere?`)) {
+                    const batch = writeBatch(db);
+                    let countNew = 0, countUpdate = 0;
+
+                    for (const row of dataRows) {
+                        const piCode = row[0] ? row[0].trim() : null;
+                        if (!piCode) continue;
+
+                        const practiceData = {
+                            pi: piCode,
+                            deadline: row[1] || "",
+                            entityName: row[2] || "",
+                            activity: row[3] || "",
+                            address: row[4] || "",
+                            municipality: row[5] || "",
+                            administrator: row[6] || "",
+                            adminEmail: row[7] || "",
+                            mailSent60: row[8] === "Inviata",
+                            updatedAt: serverTimestamp()
+                        };
+
+                        // LOGICA ANTI-DOPPIONE: Controllo se il PI esiste già in memoria (practices)
+                        const existing = practices.find(p => p.pi === piCode);
+                        
+                        if (existing) {
+                            // Se esiste, aggiorna il documento esistente (stesso ID Firebase)
+                            batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
+                            countUpdate++;
+                        } else {
+                            // Se non esiste, crea un nuovo documento
+                            batch.set(doc(collection(db, 'scadenze_pratiche')), practiceData);
+                            countNew++;
+                        }
+                    }
+                    await batch.commit();
+                    alert(`Operazione completata con successo!\n\nPratiche Nuove: ${countNew}\nPratiche Aggiornate: ${countUpdate}\nDoppioni evitati: ${countUpdate}`);
+                    event.target.value = ""; 
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        // --- JSON BACKUP ---
+        window.exportData = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(practices, null, 2));
+            const dl = document.createElement('a');
+            dl.href = dataStr;
+            dl.download = `backup_firebase_${new Date().toISOString().split('T')[0]}.json`;
+            dl.click();
+        };
+
+        // --- GESTIONE MODALE ---
         window.openModal = () => { 
             document.getElementById('practiceForm').reset(); 
             document.getElementById('practiceId').value = ''; 
-            document.getElementById('modalTitle').innerText = 'Aggiungi Nuova Pratica';
+            document.getElementById('mailSent60').value = 'false';
+            document.getElementById('modalTitle').innerText = 'Nuova Pratica';
             document.getElementById('practiceModal').classList.remove('hidden'); 
         };
-        window.closeModal = () => document.getElementById('practiceModal').classList.add('hidden');
         
+        window.closeModal = () => document.getElementById('practiceModal').classList.add('hidden');
+
         window.edit = (id) => {
             const p = practices.find(x => x.id === id);
-            if (!p) return;
             document.getElementById('practiceId').value = id;
-            document.getElementById('pi').value = p.pi;
-            document.getElementById('deadline').value = p.deadline;
-            document.getElementById('entityName').value = p.entityName;
-            document.getElementById('municipality').value = p.municipality;
-            document.getElementById('administrator').value = p.administrator;
+            document.getElementById('pi').value = p.pi || '';
+            document.getElementById('deadline').value = p.deadline || '';
+            document.getElementById('entityName').value = p.entityName || '';
+            document.getElementById('activity').value = p.activity || '';
+            document.getElementById('address').value = p.address || '';
+            document.getElementById('administrator').value = p.administrator || '';
+            document.getElementById('adminEmail').value = p.adminEmail || '';
+            document.getElementById('municipality').value = p.municipality || '';
+            document.getElementById('mailSent60').value = p.mailSent60 || 'false';
             document.getElementById('modalTitle').innerText = 'Modifica Pratica';
             document.getElementById('practiceModal').classList.remove('hidden');
         };
 
-        window.del = async (id) => { 
-            if(confirm('Sei sicuro di voler eliminare definitivamente questa pratica?')) {
-                try {
-                    await deleteDoc(doc(db, 'scadenze_pratiche', id)); 
-                } catch (e) { alert("Errore durante l'eliminazione."); }
-            }
-        };
+        window.del = async (id) => { if(confirm('Eliminare definitivamente?')) await deleteDoc(doc(db, 'scadenze_pratiche', id)); };
 
         document.getElementById('practiceForm').onsubmit = async (e) => {
             e.preventDefault();
             const id = document.getElementById('practiceId').value;
             const data = {
-                pi: document.getElementById('pi').value,
-                deadline: document.getElementById('deadline').value,
-                entityName: document.getElementById('entityName').value,
-                municipality: document.getElementById('municipality').value,
-                administrator: document.getElementById('administrator').value,
+                pi: document.getElementById('pi').value || null,
+                deadline: document.getElementById('deadline').value || null,
+                entityName: document.getElementById('entityName').value || null,
+                activity: document.getElementById('activity').value || null,
+                address: document.getElementById('address').value || null,
+                administrator: document.getElementById('administrator').value || null,
+                adminEmail: document.getElementById('adminEmail').value || null,
+                municipality: document.getElementById('municipality').value || null,
+                mailSent60: document.getElementById('mailSent60').value === 'true',
                 updatedAt: serverTimestamp()
             };
-
-            try {
-                if(id) await updateDoc(doc(db, 'scadenze_pratiche', id), data);
-                else await addDoc(collection(db, 'scadenze_pratiche'), { ...data, createdAt: serverTimestamp() });
-                closeModal();
-            } catch (err) { 
-                console.error("Errore salvataggio:", err); 
-                alert("Errore nel salvataggio. Verifica di aver creato il Database Firestore."); 
-            }
-        };
-
-        window.exportCSV = () => {
-            const head = "PI,Scadenza,Soggetto,Comune,Amministratore\n";
-            const rows = practices.map(p => `${p.pi},${p.deadline},"${p.entityName}","${p.municipality}","${p.administrator}"`).join('\n');
-            const blob = new Blob(["\ufeff" + head + rows], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = 'export_scadenze.csv'; a.click();
-        };
-
-        window.importCSV = (e) => {
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const lines = ev.target.result.split('\n').slice(1);
-                const colRef = collection(db, 'scadenze_pratiche');
-                for(let line of lines) {
-                    const c = line.split(',').map(x => x.replace(/"/g, '').trim());
-                    if(c.length >= 5 && c[1].match(/^\d{4}-\d{2}-\d{2}$/)) {
-                        await addDoc(colRef, {
-                            pi: c[0], deadline: c[1], entityName: c[2], municipality: c[3], administrator: c[4], createdAt: serverTimestamp()
-                        });
-                    }
-                }
-            };
-            reader.readAsText(e.target.files[0]);
+            if(id) await updateDoc(doc(db, 'scadenze_pratiche', id), data);
+            else await addDoc(collection(db, 'scadenze_pratiche'), data);
+            closeModal();
         };
 
         init();
