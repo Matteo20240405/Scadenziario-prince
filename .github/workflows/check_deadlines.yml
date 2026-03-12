@@ -30,4 +30,4 @@ jobs:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         run: node check_deadlines.jslità
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-        run: node check_deadlines.js
+        run: node check_deadlines.js   
