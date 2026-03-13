@@ -10,10 +10,10 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         .card { border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        /* Stili per stati scadenze */
-        .imminent { background-color: #fefce8 !important; border-left: 4px solid #facc15; } /* Giallo */
-        .expired { background-color: #fef2f2 !important; border-left: 4px solid #ef4444; }    /* Rosso */
+        .imminent { background-color: #fefce8 !important; border-left: 4px solid #facc15; }
+        .expired { background-color: #fef2f2 !important; border-left: 4px solid #ef4444; }
         #errorMessage { display: none; }
+        .filter-btn.active { border-color: #2563eb; background-color: #eff6ff; color: #1e40af; ring: 2px; --tw-ring-color: #3b82f6; }
     </style>
 </head>
 <body class="p-4 md:p-8 text-gray-800">
@@ -107,6 +107,38 @@
         </div>
     </header>
 
+    <!-- DASHBOARD FILTRI -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <button onclick="setFilter('all')" id="btn-all" class="filter-btn active bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
+            <div class="text-left">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Totali</p>
+                <p id="count-all" class="text-2xl font-black text-gray-800">0</p>
+            </div>
+            <i data-lucide="list" class="text-gray-300"></i>
+        </button>
+        <button onclick="setFilter('expired')" id="btn-expired" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
+            <div class="text-left">
+                <p class="text-xs font-bold text-red-400 uppercase tracking-wider">Scadute</p>
+                <p id="count-expired" class="text-2xl font-black text-red-600">0</p>
+            </div>
+            <i data-lucide="alert-circle" class="text-red-200"></i>
+        </button>
+        <button onclick="setFilter('imminent')" id="btn-imminent" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
+            <div class="text-left">
+                <p class="text-xs font-bold text-yellow-500 uppercase tracking-wider">In Scadenza</p>
+                <p id="count-imminent" class="text-2xl font-black text-yellow-600">0</p>
+            </div>
+            <i data-lucide="clock" class="text-yellow-200"></i>
+        </button>
+        <button onclick="setFilter('valid')" id="btn-valid" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
+            <div class="text-left">
+                <p class="text-xs font-bold text-green-400 uppercase tracking-wider">Regolari</p>
+                <p id="count-valid" class="text-2xl font-black text-green-600">0</p>
+            </div>
+            <i data-lucide="check-circle" class="text-green-200"></i>
+        </button>
+    </div>
+
     <!-- TABELLA -->
     <div class="bg-white card overflow-hidden border border-gray-100">
         <div class="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50/30">
@@ -151,7 +183,7 @@
             appId: "1:224799236818:web:1fbd60f62f653f97f2030b"
         };
 
-        let db, practices = [];
+        let db, practices = [], currentFilter = 'all';
 
         async function init() {
             try {
@@ -171,29 +203,66 @@
         function setupSync() {
             onSnapshot(collection(db, 'scadenze_pratiche'), snap => {
                 practices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                updateCounts();
                 render();
             });
         }
 
+        function updateCounts() {
+            const now = new Date().setHours(0,0,0,0);
+            const counts = { all: practices.length, expired: 0, imminent: 0, valid: 0 };
+            
+            practices.forEach(p => {
+                const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
+                if (diff < 0) counts.expired++;
+                else if (diff <= 60) counts.imminent++;
+                else counts.valid++;
+            });
+
+            document.getElementById('count-all').innerText = counts.all;
+            document.getElementById('count-expired').innerText = counts.expired;
+            document.getElementById('count-imminent').innerText = counts.imminent;
+            document.getElementById('count-valid').innerText = counts.valid;
+        }
+
+        window.setFilter = (type) => {
+            currentFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${type}`).classList.add('active');
+            render();
+        };
+
         window.render = () => {
             const term = document.getElementById('searchBar').value.toLowerCase();
             const body = document.getElementById('tableBody');
-            const filtered = practices.filter(p => 
+            const now = new Date().setHours(0,0,0,0);
+            
+            let filtered = practices.filter(p => 
                 (p.pi || "").toLowerCase().includes(term) || 
                 (p.entityName || "").toLowerCase().includes(term) ||
                 (p.municipality || "").toLowerCase().includes(term) ||
                 (p.address || "").toLowerCase().includes(term)
-            ).sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
+            );
+
+            // Filtro per stato
+            if (currentFilter !== 'all') {
+                filtered = filtered.filter(p => {
+                    const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
+                    if (currentFilter === 'expired') return diff < 0;
+                    if (currentFilter === 'imminent') return diff >= 0 && diff <= 60;
+                    if (currentFilter === 'valid') return diff > 60;
+                    return true;
+                });
+            }
+
+            filtered.sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
             
             body.innerHTML = filtered.map(p => {
-                const diff = p.deadline ? Math.ceil((new Date(p.deadline) - new Date().setHours(0,0,0,0)) / 86400000) : 999;
+                const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
                 
-                // Determinazione classe colore
                 let statusClass = "";
                 if (diff < 0) statusClass = "expired";
                 else if (diff <= 60) statusClass = "imminent";
-
-                const sent = p.mailSent60 === true;
 
                 return `<tr class="hover:bg-gray-50/50 transition-colors ${statusClass}">
                     <td class="p-4 font-bold text-gray-900 tracking-tighter">${p.pi ? '#' + p.pi : '-'}</td>
@@ -217,7 +286,7 @@
             lucide.createIcons();
         }
 
-        // --- EXPORT ---
+        // --- EXPORT & IMPORT --- (Logica mantenuta invariata)
         window.exportToExcel = () => {
             const headers = ["PI", "Scadenza", "Condominio_Societa", "Comune", "Indirizzo", "Attivita", "Amministratore", "Email_Amministratore"];
             const excelHeader = "sep=;\n";
@@ -230,7 +299,6 @@
             link.click();
         };
 
-        // --- BACKUP JSON ---
         window.exportData = () => {
             const dataStr = JSON.stringify(practices, null, 2);
             const blob = new Blob([dataStr], { type: "application/json" });
@@ -240,7 +308,6 @@
             link.click();
         };
 
-        // --- IMPORT ---
         window.importFromExcel = async (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -337,4 +404,4 @@
         init();
     </script>
 </body>
-</html>>
+</html>
