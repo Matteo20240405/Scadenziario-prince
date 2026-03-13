@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scadenziario PRINCE - Gestione Sheet</title>
+    <title>Scadenziario PRINCE Fire - Gestione Sheet</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -93,17 +93,29 @@
             <p class="text-gray-500 mt-1 font-medium italic">Gestione Integrata Sheet & Cloud</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <button onclick="exportToExcel()" class="flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition shadow-sm">
-                <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Sheet
+            <!-- EXPORT EXCEL -->
+            <button onclick="exportToExcel()" class="flex items-center px-3 py-1.5 bg-green-600 text-white text-[11px] font-bold rounded-lg hover:bg-green-700 transition shadow-sm">
+                <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Excel
             </button>
-            <label class="flex items-center px-3 py-1.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-200 cursor-pointer transition border border-emerald-200">
-                <i data-lucide="file-up" class="w-4 h-4 mr-1.5"></i> Importa Sheet
+            
+            <!-- IMPORT EXCEL -->
+            <label class="flex items-center px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-lg hover:bg-emerald-200 cursor-pointer transition border border-emerald-200">
+                <i data-lucide="file-up" class="w-4 h-4 mr-1.5"></i> Importa Excel
                 <input type="file" id="importExcelFile" class="hidden" accept=".csv" onchange="importFromExcel(event)">
             </label>
+
             <div class="w-px h-6 bg-gray-300 mx-1"></div>
-            <button onclick="exportData()" class="flex items-center px-3 py-1.5 bg-gray-100 text-gray-500 text-xs font-bold rounded-lg hover:bg-gray-200 transition border border-gray-200">
+
+            <!-- BACKUP JSON -->
+            <button onclick="exportData()" class="flex items-center px-3 py-1.5 bg-gray-800 text-white text-[11px] font-bold rounded-lg hover:bg-black transition">
                 <i data-lucide="database" class="w-4 h-4 mr-1.5"></i> Backup JSON
             </button>
+
+            <!-- RIPRISTINA JSON -->
+            <label class="flex items-center px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-lg hover:bg-gray-200 cursor-pointer transition border border-gray-300">
+                <i data-lucide="history" class="w-4 h-4 mr-1.5"></i> Ripristina JSON
+                <input type="file" id="importJsonFile" class="hidden" accept=".json" onchange="importFromJson(event)">
+            </label>
         </div>
     </header>
 
@@ -244,7 +256,6 @@
                 (p.address || "").toLowerCase().includes(term)
             );
 
-            // Filtro per stato
             if (currentFilter !== 'all') {
                 filtered = filtered.filter(p => {
                     const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
@@ -259,7 +270,6 @@
             
             body.innerHTML = filtered.map(p => {
                 const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
-                
                 let statusClass = "";
                 if (diff < 0) statusClass = "expired";
                 else if (diff <= 60) statusClass = "imminent";
@@ -286,7 +296,52 @@
             lucide.createIcons();
         }
 
-        // --- EXPORT & IMPORT --- (Logica mantenuta invariata)
+        // --- BACKUP JSON ---
+        window.exportData = () => {
+            const dataStr = JSON.stringify(practices, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `backup_safecheck_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+        };
+
+        // --- RIPRISTINA JSON ---
+        window.importFromJson = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!Array.isArray(data)) throw new Error("Formato JSON non valido.");
+                    
+                    if (confirm(`Stai per ripristinare ${data.length} pratiche dal backup. I dati esistenti con lo stesso codice verranno aggiornati. Procedere?`)) {
+                        const batch = writeBatch(db);
+                        data.forEach(p => {
+                            const existing = practices.find(ex => ex.pi === p.pi);
+                            const cleanData = { ...p };
+                            delete cleanData.id; // Non usiamo l'ID del backup per evitare conflitti
+                            cleanData.updatedAt = serverTimestamp();
+
+                            if (existing) {
+                                batch.update(doc(db, 'scadenze_pratiche', existing.id), cleanData);
+                            } else {
+                                batch.set(doc(collection(db, 'scadenze_pratiche')), cleanData);
+                            }
+                        });
+                        await batch.commit();
+                        alert("Database ripristinato con successo!");
+                    }
+                } catch (err) {
+                    alert("Errore nel caricamento del file: " + err.message);
+                }
+                event.target.value = "";
+            };
+            reader.readAsText(file);
+        };
+
+        // --- EXPORT & IMPORT EXCEL ---
         window.exportToExcel = () => {
             const headers = ["PI", "Scadenza", "Condominio_Societa", "Comune", "Indirizzo", "Attivita", "Amministratore", "Email_Amministratore"];
             const excelHeader = "sep=;\n";
@@ -296,15 +351,6 @@
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = `export_fire_${new Date().toISOString().split('T')[0]}.csv`;
-            link.click();
-        };
-
-        window.exportData = () => {
-            const dataStr = JSON.stringify(practices, null, 2);
-            const blob = new Blob([dataStr], { type: "application/json" });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = `backup_safecheck_${new Date().toISOString().split('T')[0]}.json`;
             link.click();
         };
 
@@ -332,7 +378,6 @@
                 const dataRows = lines.slice(1).map(line => parseCSVLine(line, delimiter));
                 if (confirm(`Rilevate ${dataRows.length} righe. Procedere con l'aggiornamento?`)) {
                     const batch = writeBatch(db);
-                    let countNew = 0, countUpdate = 0;
                     for (const row of dataRows) {
                         const piCode = row[0] ? row[0].trim() : null;
                         if (!piCode) continue;
@@ -349,16 +394,11 @@
                             updatedAt: serverTimestamp()
                         };
                         const existing = practices.find(p => p.pi === piCode);
-                        if (existing) {
-                            batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
-                            countUpdate++;
-                        } else {
-                            batch.set(doc(collection(db, 'scadenze_pratiche')), practiceData);
-                            countNew++;
-                        }
+                        if (existing) batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
+                        else batch.set(doc(collection(db, 'scadenze_pratiche')), practiceData);
                     }
                     await batch.commit();
-                    alert(`Importazione completata!\nNuove: ${countNew}\nAggiornate: ${countUpdate}`);
+                    alert("Importazione completata!");
                     event.target.value = ""; 
                 }
             };
