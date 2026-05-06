@@ -41,3 +41,4 @@ Sotto "Build and deployment", imposta la sorgente su "Deploy from a branch" e se
 Salva e attendi qualche minuto: la tua app sarà online all'indirizzo https://tuo-username.github.io/nome-repo/.
 
 Sviluppato come strumento di supporto tecnico per la gestione della sicurezza antincendio.
+ultima verifica 06 maggio 2026
