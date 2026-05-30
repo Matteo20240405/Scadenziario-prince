@@ -3,11 +3,12 @@ const emailjs = require('@emailjs/nodejs');
 
 /**
  * SCRIPT DI AUTOMAZIONE - POSIZIONE: Root
- * Gestione Errore 412: Riconnessione account Gmail su EmailJS.
+ * Corretto: Recupera tutte le pratiche scadute o in scadenza entro 60 giorni
+ * per evitare che vengano saltate date se lo script non gira un giorno.
  */
 async function checkAndSendEmails() {
   try {
-    console.log("--- AVVIO PROCESSO DI CONTROLLO ---");
+    console.log("--- AVVIO PROCESSO DI CONTROLLO SICURO ---");
 
     // 1. Verifica la presenza di tutti i Secret necessari
     const requiredEnv = [
@@ -35,16 +36,16 @@ async function checkAndSendEmails() {
     const db = admin.firestore();
     console.log("✅ Connessione a Firebase riuscita.");
 
-    // 3. Calcolo data target (oggi + 60 giorni)
+    // 3. Calcolo data limite (oggi + 60 giorni)
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + 60);
     const targetStr = targetDate.toISOString().split('T')[0];
 
-    console.log(`Ricerca pratiche che scadono il: ${targetStr}`);
+    console.log(`Ricerca pratiche non notificate con scadenza uguale o inferiore a: ${targetStr}`);
 
-    // 4. Query al database
+    // 4. Query modificata: prende tutto ciò che è minore o uguale (<=) a 60 giorni
     const snapshot = await db.collection('scadenze_pratiche')
-      .where('deadline', '==', targetStr)
+      .where('deadline', '<=', targetStr)
       .where('mailSent60', '==', false)
       .get();
 
@@ -53,7 +54,7 @@ async function checkAndSendEmails() {
       return;
     }
 
-    console.log(`Trovate ${snapshot.size} pratiche. Inizio invio email...`);
+    console.log(`Trovate ${snapshot.size} pratiche potenziali. Verifica in corso...`);
 
     // 5. Ciclo di invio
     for (const docSnapshot of snapshot.docs) {
@@ -62,10 +63,24 @@ async function checkAndSendEmails() {
       
       console.log(`\n--- Elaborazione: ${data.entityName || 'Senza Nome'} ---`);
       
+      // Controllo di sicurezza aggiuntivo per evitare di mandare mail a pratiche già scadute da anni nel vecchio archivio
+      // (Opzionale: manda la mail solo se la scadenza è compilata)
+      if (!data.deadline) {
+        console.log(`⚠️ Salto: Manca la data di scadenza.`);
+        continue;
+      }
+
       if (!data.adminEmail || data.adminEmail.trim() === "") {
         console.warn(`⚠️ Salto: Email amministratore mancante.`);
         continue;
       }
+
+      // Calcoliamo i giorni effettivi rimanenti solo per il testo della mail
+      const now = new Date();
+      now.setHours(0,0,0,0);
+      const prkDate = new Date(data.deadline);
+      prkDate.setHours(0,0,0,0);
+      const diffDays = Math.ceil((prkDate - now) / (1000 * 60 * 60 * 24));
 
       const templateParams = {
         to_email: data.adminEmail,
@@ -75,11 +90,12 @@ async function checkAndSendEmails() {
         deadline: data.deadline ? data.deadline.split('-').reverse().join('/') : "N.D.",
         activity: data.activity || "N.D.",
         address: data.address || "N.D.",
-        municipality: data.municipality || "N.D."
+        municipality: data.municipality || "N.D.",
+        days_left: diffDays.toString() // Puoi usare questo parametro nel template di EmailJS per dire quanti giorni mancano di preciso!
       };
 
       try {
-        console.log(`Invio a EmailJS per: ${templateParams.to_email}...`);
+        console.log(`Invio a EmailJS per: ${templateParams.to_email} (Mancano ${diffDays} giorni)...`);
         
         const response = await emailjs.send(
           process.env.EMAILJS_SERVICE_ID,
@@ -93,7 +109,7 @@ async function checkAndSendEmails() {
 
         console.log(`✅ Successo! Status: ${response.status}`);
 
-        // 6. Aggiornamento Database
+        // 6. Aggiornamento Database: blocca futuri invii duplicati
         await db.collection('scadenze_pratiche').doc(docId).update({
           mailSent60: true,
           lastEmailSentAt: admin.firestore.FieldValue.serverTimestamp()
@@ -105,7 +121,7 @@ async function checkAndSendEmails() {
         console.error(`❌ Errore EmailJS: ${mailError.status} - ${mailError.text}`);
         
         if (mailError.status === 412) {
-          console.error("💡 AZIONE RICHIESTA: Il collegamento Gmail è scaduto o non autorizzato. Vai su EmailJS -> Email Services e clicca su RECONNECT per autorizzare nuovamente l'account Google.");
+          console.error("💡 AZIONE RICHIESTA: Il collegamento Gmail è scaduto o non autorizzato. Vai su EmailJS -> Email Services e clicca su RECONNECT.");
         } else if (mailError.status === 403) {
           console.error("💡 NOTA: Devi abilitare 'API access from non-browser environments' nelle impostazioni di sicurezza di EmailJS.");
         }
@@ -124,3 +140,5 @@ async function checkAndSendEmails() {
 }
 
 checkAndSendEmails();
+
+
