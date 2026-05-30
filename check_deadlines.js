@@ -4,7 +4,7 @@ const emailjs = require('@emailjs/nodejs');
 /**
  * SCRIPT DI AUTOMAZIONE - POSIZIONE: Root
  * Corretto: Recupera tutte le pratiche scadute o in scadenza entro 60 giorni
- * per evitare che vengano saltate date se lo script non gira un giorno.
+ * Invia tutte le notifiche a un indirizzo email fisso di controllo.
  */
 async function checkAndSendEmails() {
   try {
@@ -56,24 +56,20 @@ async function checkAndSendEmails() {
 
     console.log(`Trovate ${snapshot.size} pratiche potenziali. Verifica in corso...`);
 
-    // 5. Ciclo di invio
+    // 5. Ciclo di invio modificato con Email Fissa
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
       const docId = docSnapshot.id;
       
       console.log(`\n--- Elaborazione: ${data.entityName || 'Senza Nome'} ---`);
       
-      // Controllo di sicurezza aggiuntivo per evitare di mandare mail a pratiche già scadute da anni nel vecchio archivio
-      // (Opzionale: manda la mail solo se la scadenza è compilata)
       if (!data.deadline) {
         console.log(`⚠️ Salto: Manca la data di scadenza.`);
         continue;
       }
 
-      if (!data.adminEmail || data.adminEmail.trim() === "") {
-        console.warn(`⚠️ Salto: Email amministratore mancante.`);
-        continue;
-      }
+      // MODIFICA: Forziamo l'invio alla tua email specifica invece di cercarla nel database
+      const destinatarioEmail = "prevenzioneprince@gmail.com";
 
       // Calcoliamo i giorni effettivi rimanenti solo per il testo della mail
       const now = new Date();
@@ -83,7 +79,7 @@ async function checkAndSendEmails() {
       const diffDays = Math.ceil((prkDate - now) / (1000 * 60 * 60 * 24));
 
       const templateParams = {
-        to_email: data.adminEmail,
+        to_email: destinatarioEmail,
         admin_name: data.administrator || "Amministratore",
         entity_name: data.entityName || "Soggetto N.D.",
         pi_code: data.pi || "N.D.",
@@ -91,7 +87,7 @@ async function checkAndSendEmails() {
         activity: data.activity || "N.D.",
         address: data.address || "N.D.",
         municipality: data.municipality || "N.D.",
-        days_left: diffDays.toString() // Puoi usare questo parametro nel template di EmailJS per dire quanti giorni mancano di preciso!
+        days_left: diffDays.toString()
       };
 
       try {
@@ -140,5 +136,3 @@ async function checkAndSendEmails() {
 }
 
 checkAndSendEmails();
-
-
