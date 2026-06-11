@@ -43,7 +43,7 @@ async function checkAndSendEmails() {
     // 2. INIZIALIZZAZIONE FIREBASE CON PULIZIA STRINGA STRUTTURATA
     let serviceAccount;
     try {
-      // Rimuove eventuali spazi vuoti o ritorni a capo spuri all'inizio/fine del Secret di GitHub
+      // Rimuove eventuali spazi vuoti o ritornos a capo spuri all'inizio/fine del Secret di GitHub
       const cleanJsonString = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
       serviceAccount = JSON.parse(cleanJsonString);
     } catch (jsonError) {
@@ -80,7 +80,7 @@ async function checkAndSendEmails() {
       return;
     }
 
-    console.log(`Trovate ${snapshot.size} pratiche potenziali. Inizio elaborazione...`);
+    console.log(`Trovate ${snapshot.size} pratiche potenziali. Inchio elaborazione...`);
 
     // 5. CICLO DI INVIO NOTIFICHE CON EMAIL FISSA
     for (const docSnapshot of snapshot.docs) {
@@ -126,4 +126,30 @@ async function checkAndSendEmails() {
           templateParams
         );
 
-        console.log(`✅ Mail inviata con successo! Status
+        console.log(`✅ Mail inviata con successo! Status EmailJS: ${response.status}`);
+
+        // 6. AGGIORNAMENTO DATABASE PER EVITARE DUPLICATI
+        await db.collection('scadenze_pratiche').doc(docId).update({
+          mailSent60: true,
+          lastEmailSentAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        
+        console.log(`✅ Firebase aggiornato correttamente per la pratica: ${docId}`);
+
+      } catch (mailError) {
+        console.error(`❌ Errore durante l'invio della mail per ${docId}:`, mailError);
+        throw mailError; 
+      }
+    }
+
+    console.log("\n--- PROCESSO COMPLETATO CON SUCCESSO ---");
+
+  } catch (error) {
+    console.error("\n❌ ERRORE CRITICO INTERCETTATO:");
+    console.error(error.message || error);
+    process.exit(1); 
+  }
+}
+
+// Esecuzione dello script
+checkAndSendEmails();
