@@ -1,5 +1,6 @@
-const admin = require('firebase-admin');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore'); // Importazione moderna e specifica
+const { initializeApp, getApps } = require('firebase-admin/app');
+const { cert } = require('firebase-admin/app');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const emailjs = require('@emailjs/nodejs');
 
 /**
@@ -52,15 +53,15 @@ async function checkAndSendEmails() {
       throw jsonError;
     }
 
-    // Inizializzazione dell'app con fallback automatico
-    if (!admin.apps || admin.apps.length === 0) {
-      admin.initializeApp({
-        credential: admin.credential ? admin.credential.cert(serviceAccount) : admin.initializeApp.credential.cert(serviceAccount)
+    // Inizializzazione con sintassi ultra-moderna e modulare
+    if (getApps().length === 0) {
+      initializeApp({
+        credential: cert(serviceAccount)
       });
-      console.log("✅ Firebase Admin inizializzato con successo.");
+      console.log("✅ Firebase Admin inizializzato con successo tramite modulo /app.");
     }
 
-    // CORREZIONE DEFINITIVA: Istanziamo Firestore usando la funzione nativa corretta
+    // Istanza di Firestore nativa
     const db = getFirestore();
     console.log("✅ Connessione a Firebase (Firestore) riuscita.");
 
@@ -130,7 +131,7 @@ async function checkAndSendEmails() {
         // 6. AGGIORNAMENTO DATABASE PER EVITARE DUPLICATI
         await db.collection('scadenze_pratiche').doc(docId).update({
           mailSent60: true,
-          lastEmailSentAt: FieldValue.serverTimestamp() // Aggiornato con il modulo corretto
+          lastEmailSentAt: FieldValue.serverTimestamp()
         });
         
         console.log(`✅ Firebase aggiornato correttamente per la pratica: ${docId}`);
