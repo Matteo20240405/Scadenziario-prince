@@ -25,6 +25,12 @@ async function checkAndSendEmails() {
       }
     }
 
+    // Inizializzazione globale di EmailJS con i passaporti di sicurezza
+    emailjs.init({
+      publicKey: String(process.env.EMAILJS_PUBLIC_KEY).trim(),
+      privateKey: String(process.env.EMAILJS_PRIVATE_KEY).trim(),
+    });
+
     // 2. Inizializzazione Firebase
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     if (!admin.apps.length) {
@@ -93,14 +99,11 @@ async function checkAndSendEmails() {
       try {
         console.log(`Invio a EmailJS per: ${templateParams.to_email} (Mancano ${diffDays} giorni)...`);
         
+        // Chiamata semplificata sfruttando l'inizializzazione globale precedente
         const response = await emailjs.send(
-          process.env.EMAILJS_SERVICE_ID,
-          process.env.EMAILJS_TEMPLATE_ID,
-          templateParams,
-          {
-            publicKey: process.env.EMAILJS_PUBLIC_KEY,
-            privateKey: process.env.EMAILJS_PRIVATE_KEY,
-          }
+          String(process.env.EMAILJS_SERVICE_ID).trim(),
+          String(process.env.EMAILJS_TEMPLATE_ID).trim(),
+          templateParams
         );
 
         console.log(`✅ Successo! Status: ${response.status}`);
@@ -114,11 +117,11 @@ async function checkAndSendEmails() {
         console.log(`✅ Firebase aggiornato per ${docId}`);
 
       } catch (mailError) {
-        console.error(`❌ Errore EmailJS: ${mailError.status} - ${mailError.text}`);
+        console.error(`❌ Errore durante l'invio o la validazione di EmailJS:`, mailError);
         
-        if (mailError.status === 412) {
+        if (mailError && mailError.status === 412) {
           console.error("💡 AZIONE RICHIESTA: Il collegamento Gmail è scaduto o non autorizzato. Vai su EmailJS -> Email Services e clicca su RECONNECT.");
-        } else if (mailError.status === 403) {
+        } else if (mailError && mailError.status === 403) {
           console.error("💡 NOTA: Devi abilitare 'API access from non-browser environments' nelle impostazioni di sicurezza di EmailJS.");
         }
         
@@ -130,7 +133,7 @@ async function checkAndSendEmails() {
 
   } catch (error) {
     console.error("\n❌ ERRORE CRITICO:");
-    console.error(error);
+    console.error(error.message || error);
     process.exit(1); 
   }
 }
