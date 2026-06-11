@@ -30,7 +30,7 @@ async function checkAndSendEmails() {
       }
     }
 
-    // Inizializzazione protetta di EmailJS per evitare crash interni della libreria
+    // Inizializzazione protetta di EmailJS
     const pKey = String(process.env.EMAILJS_PUBLIC_KEY).trim();
     const sKey = String(process.env.EMAILJS_PRIVATE_KEY).trim();
     
@@ -40,27 +40,37 @@ async function checkAndSendEmails() {
     });
     console.log("✅ EmailJS inizializzato globalmente.");
 
-    // 2. INIZIALIZZAZIONE FIREBASE CON PULIZIA STRINGA STRUTTURATA
+    // 2. INIZIALIZZAZIONE FIREBASE IN SICUREZZA
     let serviceAccount;
     try {
-      // Rimuove eventuali spazi vuoti o ritornos a capo spuri all'inizio/fine del Secret di GitHub
       const cleanJsonString = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
       serviceAccount = JSON.parse(cleanJsonString);
     } catch (jsonError) {
       console.error("\n❌ ERRORE CRITICO NEL PARSING DEL JSON DI FIREBASE:");
       console.error("Il testo dentro FIREBASE_SERVICE_ACCOUNT non è un JSON valido.");
-      console.error("Controlla di averlo copiato e incollato correttamente nei Secret di GitHub.");
       throw jsonError;
     }
 
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
+    // MODIFICA CRUCIALE: Usiamo l'optional chaining (?.) per evitare il crash su 'length'
+    // Se admin.apps non esiste, non andrà in crash ma passerà oltre inizializzando l'app.
+    if (!admin.apps || admin.apps.length === 0) {
+      try {
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
+        console.log("✅ Firebase Admin inizializzato con successo.");
+      } catch (initError) {
+        // Se l'app esiste già, Firebase lancerà un errore specifico che intercettiamo qui
+        if (initError.code === 'app/duplicate-app') {
+          console.log("ℹ️ Firebase era già inizializzato.");
+        } else {
+          throw initError;
+        }
+      }
     }
 
     const db = admin.firestore();
-    console.log("✅ Connessione a Firebase riuscita.");
+    console.log("✅ Connessione a Firebase (Firestore) riuscita.");
 
     // 3. CALCOLO DATA LIMITE (OGGI + 60 GIORNI)
     const targetDate = new Date();
@@ -80,7 +90,7 @@ async function checkAndSendEmails() {
       return;
     }
 
-    console.log(`Trovate ${snapshot.size} pratiche potenziali. Inchio elaborazione...`);
+    console.log(`Trovate ${snapshot.size} pratiche potenziali. Inizio elaborazione...`);
 
     // 5. CICLO DI INVIO NOTIFICHE CON EMAIL FISSA
     for (const docSnapshot of snapshot.docs) {
@@ -94,17 +104,14 @@ async function checkAndSendEmails() {
         continue;
       }
 
-      // Destinatario fisso di controllo
       const destinatarioEmail = "prevenzioneprince@gmail.com";
 
-      // Calcolo dei giorni effettivi rimanenti alla scadenza
       const now = new Date();
       now.setHours(0,0,0,0);
       const prkDate = new Date(data.deadline);
       prkDate.setHours(0,0,0,0);
       const diffDays = Math.ceil((prkDate - now) / (1000 * 60 * 60 * 24));
 
-      // Configurazione dei parametri del template di EmailJS
       const templateParams = {
         to_email: destinatarioEmail,
         admin_name: data.administrator || "Amministratore",
@@ -128,7 +135,7 @@ async function checkAndSendEmails() {
 
         console.log(`✅ Mail inviata con successo! Status EmailJS: ${response.status}`);
 
-        // 6. AGGIORNAMENTO DATABASE PER EVITARE DUPLICATI
+        // 6. AGGIORAMENTO DATABASE PER EVITARE DUPLICATI
         await db.collection('scadenze_pratiche').doc(docId).update({
           mailSent60: true,
           lastEmailSentAt: admin.firestore.FieldValue.serverTimestamp()
@@ -151,5 +158,4 @@ async function checkAndSendEmails() {
   }
 }
 
-// Esecuzione dello script
 checkAndSendEmails();
