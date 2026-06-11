@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore'); // Importazione moderna e specifica
 const emailjs = require('@emailjs/nodejs');
 
 /**
@@ -51,48 +52,16 @@ async function checkAndSendEmails() {
       throw jsonError;
     }
 
-    // MODIFICA CRUCIALISSIMA: Inizializziamo l'app in modo compatibile con tutte le versioni dell'SDK
+    // Inizializzazione dell'app con fallback automatico
     if (!admin.apps || admin.apps.length === 0) {
-      try {
-        admin.initializeApp({
-          // Utilizziamo l'approccio diretto all'oggetto credential passando la configurazione
-          credential: admin.credential ? admin.credential.cert(serviceAccount) : admin.initializeApp.credential.cert(serviceAccount)
-        });
-        console.log("✅ Firebase Admin inizializzato con successo.");
-      } catch (initError) {
-        // Se il blocco sopra fallisce per via delle strutture interne variabili, usiamo il fallback moderno pulito
-        try {
-          admin.initializeApp({
-            credential: {
-              getAccessToken: () => {
-                // Questo è un meccanismo alternativo nativo se l'SDK rompe i metodi factory principali
-                throw new Error("Metodo alternativo non supportato");
-              },
-              ...serviceAccount
-            }
-          });
-        } catch (nestedError) {
-          // Se anche il fallback fallisce, forziamo l'inizializzazione passando direttamente l'oggetto
-          // Molte versioni accettano direttamente la chiamata con l'account di servizio integrato
-          try {
-            const { cert } = require('firebase-admin/app');
-            admin.initializeApp({
-              credential: cert(serviceAccount)
-            });
-            console.log("✅ Firebase Admin inizializzato tramite modulo secondario /app.");
-          } catch (finalError) {
-            // Ultima spiaggia standard e pulita: passiamo l'oggetto decostruito se l'SDK è aggiornato
-            admin.initializeApp({
-              credential: admin.credential?.cert(serviceAccount) || admin.credential
-            });
-          }
-        }
-      }
+      admin.initializeApp({
+        credential: admin.credential ? admin.credential.cert(serviceAccount) : admin.initializeApp.credential.cert(serviceAccount)
+      });
+      console.log("✅ Firebase Admin inizializzato con successo.");
     }
 
-    // Se per qualche motivo i metodi dinamici sopra si incartano, la via più pulita e standard in Node.js v13+ è questa:
-    // Proviamo a forzare la connessione sicura al DB
-    const db = admin.firestore();
+    // CORREZIONE DEFINITIVA: Istanziamo Firestore usando la funzione nativa corretta
+    const db = getFirestore();
     console.log("✅ Connessione a Firebase (Firestore) riuscita.");
 
     // 3. CALCOLO DATA LIMITE (OGGI + 60 GIORNI)
@@ -161,7 +130,7 @@ async function checkAndSendEmails() {
         // 6. AGGIORNAMENTO DATABASE PER EVITARE DUPLICATI
         await db.collection('scadenze_pratiche').doc(docId).update({
           mailSent60: true,
-          lastEmailSentAt: admin.firestore.FieldValue.serverTimestamp()
+          lastEmailSentAt: FieldValue.serverTimestamp() // Aggiornato con il modulo corretto
         });
         
         console.log(`✅ Firebase aggiornato correttamente per la pratica: ${docId}`);
