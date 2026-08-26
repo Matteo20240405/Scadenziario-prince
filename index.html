@@ -1,569 +1,583 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scadenziario PRINCE Fire - Gestione Sheet & Cloud</title>
+    <title>Scadenziario PRINCE Fire - Gestore CPI</title>
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS (XLSX) per import/export Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .card { border-radius: 1rem; box-shadow: 0 4px 15px -1px rgba(0, 0, 0, 0.05); }
-        .imminent { background-color: #fffbeb !important; border-left: 4px solid #f59e0b; }
-        .expired { background-color: #fef2f2 !important; border-left: 4px solid #ef4444; }
-        .valid { border-left: 4px solid #10b981; }
-        .filter-btn.active { border-color: #2563eb; background-color: #eff6ff; color: #1e40af; ring: 2px; --tw-ring-color: #3b82f6; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        @keyframes toastIn {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .toast-animate {
+            animation: toastIn 0.3s ease-out forwards;
+        }
     </style>
 </head>
-<body class="p-4 md:p-8 text-slate-800 min-h-screen">
+<body class="min-h-screen bg-slate-50 text-slate-800 p-3 md:p-6 pb-20">
 
-    <!-- CONTAINER TOAST NOTIFICHE -->
+    <!-- CONTENITORE NOTIFICHE TOAST -->
     <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
-
-    <!-- MESSAGGIO ERRORE CONFIGURAZIONE -->
-    <div id="errorMessage" class="hidden mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 card shadow-sm">
-        <p class="font-bold text-base flex items-center gap-2">
-            <i data-lucide="alert-triangle" class="w-5 h-5"></i> Errore di Configurazione
-        </p>
-        <p id="errorDetails" class="text-sm mt-1"></p>
-    </div>
-
-    <!-- MODALE DI CONFERMA PERSONALIZZATA (Sostituto di confirm()) -->
-    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50 transition-opacity">
-        <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4 border border-slate-100">
-            <div class="flex items-center gap-3 text-amber-500">
-                <div class="p-3 bg-amber-50 rounded-xl">
-                    <i data-lucide="help-circle" class="w-6 h-6"></i>
-                </div>
-                <div>
-                    <h3 id="confirmTitle" class="text-lg font-bold text-slate-900">Conferma Operazione</h3>
-                    <p id="confirmMessage" class="text-xs text-slate-500 mt-0.5">Sei sicuro di voler procedere?</p>
-                </div>
-            </div>
-            <div class="flex justify-end gap-3 pt-2">
-                <button id="confirmCancelBtn" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">Annulla</button>
-                <button id="confirmOkBtn" class="px-4 py-2 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl shadow-md transition">Procedi</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODALE GESTIONE PRATICA -->
-    <div id="practiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white w-full max-w-lg p-6 rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-100">
-            <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
-                <div class="flex items-center gap-2">
-                    <span class="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                        <i data-lucide="file-text" class="w-5 h-5"></i>
-                    </span>
-                    <h2 id="modalTitle" class="text-xl font-black text-slate-900">Gestione Pratica</h2>
-                </div>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <form id="practiceForm" class="space-y-4">
-                <input type="hidden" id="practiceId">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Codice PI</label>
-                        <input type="text" id="pi" placeholder="Es. 12345" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Scadenza *</label>
-                        <input type="date" id="deadline" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition" required>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Condominio / Società *</label>
-                    <input type="text" id="entityName" placeholder="Nome del condominio o società" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition" required>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Attività</label>
-                    <input type="text" id="activity" placeholder="Es. Autorimessa, Centrale Termica, ecc." class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Indirizzo</label>
-                        <input type="text" id="address" placeholder="Via/Piazza e civico" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Comune</label>
-                        <input type="text" id="municipality" placeholder="Es. Roma" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Amministratore</label>
-                        <input type="text" id="administrator" placeholder="Nome referente" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email Referente</label>
-                        <input type="email" id="adminEmail" placeholder="mail@esempio.it" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
-                    </div>
-                </div>
-                <input type="hidden" id="mailSent60" value="false">
-
-                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100 mt-6">
-                    <button type="button" onclick="closeModal()" class="px-5 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition">Annulla</button>
-                    <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition active:scale-95">Salva Pratica</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <div class="max-w-7xl mx-auto space-y-6">
 
         <!-- HEADER -->
-        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 card border border-slate-100">
+        <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 card border border-slate-100">
             <div>
-                <h1 class="text-3xl font-black text-slate-900 flex items-center tracking-tight">
+                <h1 class="text-2xl md:text-3xl font-black text-slate-900 flex items-center tracking-tight">
                     <span class="bg-indigo-600 p-2.5 rounded-2xl mr-3 shadow-lg shadow-indigo-200 flex items-center justify-center">
-                        <i data-lucide="shield-check" class="text-white w-7 h-7"></i>
+                        <i data-lucide="shield-check" class="text-white w-6 h-6 md:w-7 md:h-7"></i>
                     </span>
                     Scadenziario PRINCE <span class="text-indigo-600 ml-2 italic">Fire</span>
                 </h1>
-                <p class="text-slate-500 text-xs mt-1 font-medium">Registro Cloud & Sincronizzazione Scadenze Antincendio</p>
+                <p class="text-slate-500 text-xs mt-1 font-medium">Registro Cloud & Sincronizzazione Scadenze Antincendio (CPI)</p>
             </div>
             
-            <!-- AZIONI BACKUP / ESFORT / IMPORT -->
+            <!-- AZIONI HEADER (AGGIORNA / SHEETS / EXCEL / BACKUP) -->
             <div class="flex flex-wrap items-center gap-2">
+                <!-- TASTO AGGIORNA / RICARICA DATI -->
+                <button onclick="refreshData()" title="Ricarica Dati e Vista" class="flex items-center px-3.5 py-2.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition border border-indigo-200/60 active:scale-95">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 mr-1.5"></i> Aggiorna
+                </button>
+
+                <!-- SINCRONIZZA SHEETS -->
+                <button onclick="openWebhookModal()" title="Sincronizza con Google Sheets" class="flex items-center px-3.5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm active:scale-95">
+                    <i data-lucide="rotate-cw" class="w-4 h-4 mr-1.5"></i> Sincronizza Sheets
+                </button>
+
+                <div class="hidden sm:block w-px h-6 bg-slate-200 mx-1"></div>
+
                 <!-- EXPORT EXCEL -->
-                <button onclick="exportToExcel()" class="flex items-center px-3.5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm active:scale-95">
+                <button onclick="exportToExcel()" class="flex items-center px-3.5 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm active:scale-95">
                     <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Excel
                 </button>
                 
                 <!-- IMPORT EXCEL -->
-                <label class="flex items-center px-3.5 py-2 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl hover:bg-emerald-100 cursor-pointer transition border border-emerald-200/60 active:scale-95">
+                <label class="flex items-center px-3.5 py-2.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl hover:bg-emerald-100 cursor-pointer transition border border-emerald-200/60 active:scale-95">
                     <i data-lucide="file-up" class="w-4 h-4 mr-1.5"></i> Importa Excel
-                    <input type="file" id="importExcelFile" class="hidden" accept=".csv" onchange="importFromExcel(event)">
+                    <input type="file" id="importExcelFile" class="hidden" accept=".csv, .xlsx, .xls" onchange="importFromExcel(event)">
                 </label>
 
-                <div class="w-px h-6 bg-slate-200 mx-1"></div>
+                <div class="hidden sm:block w-px h-6 bg-slate-200 mx-1"></div>
 
                 <!-- BACKUP JSON -->
-                <button onclick="exportData()" class="flex items-center px-3.5 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition active:scale-95">
+                <button onclick="exportData()" title="Esporta Backup JSON" class="flex items-center px-3 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition active:scale-95">
                     <i data-lucide="database" class="w-4 h-4 mr-1.5"></i> Backup JSON
                 </button>
 
                 <!-- RIPRISTINA JSON -->
-                <label class="flex items-center px-3.5 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 cursor-pointer transition border border-slate-200 active:scale-95">
-                    <i data-lucide="history" class="w-4 h-4 mr-1.5"></i> Ripristina JSON
+                <label title="Ripristina da file JSON" class="flex items-center px-3 py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 cursor-pointer transition border border-slate-200 active:scale-95">
+                    <i data-lucide="history" class="w-4 h-4 mr-1.5"></i> Ripristina
                     <input type="file" id="importJsonFile" class="hidden" accept=".json" onchange="importFromJson(event)">
                 </label>
             </div>
         </header>
 
-        <!-- DASHBOARD STATISTICHE E FILTRI -->
+        <!-- DASHBOARD STATISTICHE -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button onclick="setFilter('all')" id="btn-all" class="filter-btn active bg-white p-5 card border-2 border-transparent transition-all flex items-center justify-between text-left group">
-                <div>
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Totali</p>
-                    <p id="count-all" class="text-3xl font-black text-slate-900 mt-1">0</p>
+            <div onclick="setFilter('all')" class="card p-5 cursor-pointer border-2 hover:border-indigo-500 transition group">
+                <div class="flex items-center justify-between text-slate-500">
+                    <span class="text-xs font-bold uppercase tracking-wider">Totale Pratiche</span>
+                    <i data-lucide="folder" class="w-5 h-5 text-indigo-500 group-hover:scale-110 transition"></i>
                 </div>
-                <div class="p-3 bg-slate-50 rounded-xl group-hover:bg-indigo-50 transition">
-                    <i data-lucide="list" class="text-slate-400 group-hover:text-indigo-600"></i>
-                </div>
-            </button>
-
-            <button onclick="setFilter('expired')" id="btn-expired" class="filter-btn bg-white p-5 card border-2 border-transparent transition-all flex items-center justify-between text-left group">
-                <div>
-                    <p class="text-[10px] font-black text-red-400 uppercase tracking-widest">Scadute</p>
-                    <p id="count-expired" class="text-3xl font-black text-red-600 mt-1">0</p>
-                </div>
-                <div class="p-3 bg-red-50 rounded-xl transition">
-                    <i data-lucide="alert-circle" class="text-red-500"></i>
-                </div>
-            </button>
-
-            <button onclick="setFilter('imminent')" id="btn-imminent" class="filter-btn bg-white p-5 card border-2 border-transparent transition-all flex items-center justify-between text-left group">
-                <div>
-                    <p class="text-[10px] font-black text-amber-500 uppercase tracking-widest">In Scadenza</p>
-                    <p id="count-imminent" class="text-3xl font-black text-amber-600 mt-1">0</p>
-                </div>
-                <div class="p-3 bg-amber-50 rounded-xl transition">
-                    <i data-lucide="clock" class="text-amber-500"></i>
-                </div>
-            </button>
-
-            <button onclick="setFilter('valid')" id="btn-valid" class="filter-btn bg-white p-5 card border-2 border-transparent transition-all flex items-center justify-between text-left group">
-                <div>
-                    <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Regolari</p>
-                    <p id="count-valid" class="text-3xl font-black text-emerald-600 mt-1">0</p>
-                </div>
-                <div class="p-3 bg-emerald-50 rounded-xl transition">
-                    <i data-lucide="check-circle" class="text-emerald-500"></i>
-                </div>
-            </button>
-        </div>
-
-        <!-- TABELLA REGISTRO -->
-        <div class="bg-white card overflow-hidden border border-slate-100">
-            <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/50">
-                <div class="relative w-full md:w-96">
-                    <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                    <input type="text" id="searchBar" oninput="render()" placeholder="Cerca per PI, Condominio, Comune..." class="w-full bg-white border border-slate-200 py-2.5 pl-10 pr-4 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                </div>
-                <button onclick="openModal()" class="w-full md:w-auto px-6 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-95">
-                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Nuova Pratica
-                </button>
+                <div id="statTotal" class="text-3xl font-black text-slate-900 mt-2">0</div>
+                <p class="text-[11px] text-slate-400 mt-1">Nel registro attivo</p>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-50 text-slate-400 font-bold uppercase text-[10px] tracking-widest border-b border-slate-100">
+            <div onclick="setFilter('expired')" class="card p-5 cursor-pointer border-2 hover:border-rose-500 transition group">
+                <div class="flex items-center justify-between text-slate-500">
+                    <span class="text-xs font-bold uppercase tracking-wider text-rose-600">Scadute</span>
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500 group-hover:scale-110 transition"></i>
+                </div>
+                <div id="statExpired" class="text-3xl font-black text-rose-600 mt-2">0</div>
+                <p class="text-[11px] text-rose-400 mt-1">Azione immediata richiesta</p>
+            </div>
+
+            <div onclick="setFilter('imminent')" class="card p-5 cursor-pointer border-2 hover:border-amber-500 transition group">
+                <div class="flex items-center justify-between text-slate-500">
+                    <span class="text-xs font-bold uppercase tracking-wider text-amber-600">In Scadenza</span>
+                    <i data-lucide="clock" class="w-5 h-5 text-amber-500 group-hover:scale-110 transition"></i>
+                </div>
+                <div id="statImminent" class="text-3xl font-black text-amber-600 mt-2">0</div>
+                <p class="text-[11px] text-amber-500 mt-1">Entro 60 giorni</p>
+            </div>
+
+            <div onclick="setFilter('valid')" class="card p-5 cursor-pointer border-2 hover:border-emerald-500 transition group">
+                <div class="flex items-center justify-between text-slate-500">
+                    <span class="text-xs font-bold uppercase tracking-wider text-emerald-600">Regolari</span>
+                    <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 group-hover:scale-110 transition"></i>
+                </div>
+                <div id="statValid" class="text-3xl font-black text-emerald-600 mt-2">0</div>
+                <p class="text-[11px] text-emerald-500 mt-1">Oltre 60 giorni</p>
+            </div>
+        </div>
+
+        <!-- CONTROLLI RICERCA E AZIONI PRATICA -->
+        <div class="card p-4 flex flex-col md:flex-row gap-3 items-center justify-between border border-slate-100">
+            <div class="relative w-full md:w-96">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchInput" oninput="render()" placeholder="Cerca per condominio, PI, comune, indirizzo..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+                <!-- TASTI FILTRO STATO -->
+                <div class="inline-flex p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+                    <button id="btnFilterAll" onclick="setFilter('all')" class="px-3 py-1.5 rounded-lg bg-white shadow-sm text-slate-800">Tutte</button>
+                    <button id="btnFilterExpired" onclick="setFilter('expired')" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800">Scadute</button>
+                    <button id="btnFilterImminent" onclick="setFilter('imminent')" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800">In Scadenza</button>
+                    <button id="btnFilterValid" onclick="setFilter('valid')" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800">Regolari</button>
+                </div>
+
+                <!-- NUOVA PRATICA -->
+                <button onclick="openModal()" class="flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-200 transition active:scale-95 ml-auto md:ml-0">
+                    <i data-lucide="plus" class="w-4 h-4 mr-1.5"></i> Nuova Pratica
+                </button>
+            </div>
+        </div>
+
+        <!-- TABELLA PRATICHE -->
+        <div class="card overflow-hidden border border-slate-100">
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-800 text-slate-200 uppercase text-[10px] font-bold tracking-wider">
                         <tr>
-                            <th class="p-4 pl-6">PI</th>
+                            <th class="p-4">Condominio / Ente</th>
+                            <th class="p-4">Cod. Pratica (PI)</th>
+                            <th class="p-4">Comune & Indirizzo</th>
+                            <th class="p-4">Attività CPI</th>
+                            <th class="p-4">Amministratore</th>
                             <th class="p-4 text-center">Scadenza</th>
-                            <th class="p-4">Condominio / Ditta</th>
-                            <th class="p-4">Comune</th>
-                            <th class="p-4">Indirizzo</th>
-                            <th class="p-4">Attività</th>
-                            <th class="p-4 pr-6 text-right">Azioni</th>
+                            <th class="p-4 text-center">Stato</th>
+                            <th class="p-4 text-right">Azioni</th>
                         </tr>
                     </thead>
-                    <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
+                    <tbody id="practiceTableBody" class="divide-y divide-slate-100 text-xs">
+                        <!-- Generato dinamicamente -->
+                    </tbody>
                 </table>
             </div>
 
-            <div id="emptyState" class="hidden p-12 text-center text-slate-400 italic text-sm">
-                Nessuna pratica trovata nel registro.
+            <div id="emptyState" class="p-12 text-center text-slate-400 hidden">
+                <i data-lucide="inbox" class="w-12 h-12 mx-auto text-slate-300 mb-2"></i>
+                <p class="text-sm font-semibold text-slate-600">Nessuna pratica trovata</p>
+                <p class="text-xs mt-1">Prova a cambiare i filtri di ricerca o ad aggiungere una nuova pratica.</p>
             </div>
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyB1V1I7lMYKT7_eUTiVEVFZDwPr3V94el8",
-            authDomain: "scadenziario-prince.firebaseapp.com",
-            projectId: "scadenziario-prince",
-            storageBucket: "scadenziario-prince.firebasestorage.app",
-            messagingSenderId: "224799236818",
-            appId: "1:224799236818:web:1fbd60f62f653f97f2030b"
-        };
-
-        let db, practices = [], currentFilter = 'all';
-
-        // Toast Notification Function (Replaces alert)
-        window.showToast = (message, type = 'info') => {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            
-            const bgColors = {
-                success: 'bg-emerald-600 text-white',
-                error: 'bg-red-600 text-white',
-                info: 'bg-slate-900 text-white',
-                warning: 'bg-amber-500 text-white'
-            };
-
-            const icons = {
-                success: 'check-circle',
-                error: 'alert-triangle',
-                info: 'info',
-                warning: 'alert-circle'
-            };
-
-            toast.className = `pointer-events-auto p-4 rounded-xl shadow-xl flex items-center justify-between gap-3 text-xs font-semibold transition-all duration-300 transform translate-y-2 opacity-0 ${bgColors[type] || bgColors.info}`;
-            toast.innerHTML = `
-                <div class="flex items-center gap-2">
-                    <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4"></i>
-                    <span>${message}</span>
+    <!-- MODALE INSERIMENTO / MODIFICA PRATICA -->
+    <div id="practiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white w-full max-w-2xl p-6 rounded-2xl shadow-2xl space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2 text-indigo-600">
+                    <i data-lucide="file-text" class="w-5 h-5"></i>
+                    <h3 id="modalTitle" class="text-base font-bold text-slate-900">Nuova Pratica</h3>
                 </div>
-                <button onclick="this.parentElement.remove()" class="opacity-70 hover:opacity-100"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
-            `;
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
 
-            container.appendChild(toast);
+            <form id="practiceForm" onsubmit="savePractice(event)" class="space-y-4">
+                <input type="hidden" id="practiceId">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Codice Pratica (PI) *</label>
+                        <input type="text" id="pi" required placeholder="Es. PI 12345" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Data Scadenza *</label>
+                        <input type="date" id="deadline" required class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nome Condominio / Ente *</label>
+                        <input type="text" id="entityName" required placeholder="Es. Condominio San Marco" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Comune</label>
+                        <input type="text" id="municipality" placeholder="Es. Milano" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Indirizzo</label>
+                        <input type="text" id="address" placeholder="Es. Via Roma 15" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Attività / Categoria</label>
+                        <input type="text" id="activity" placeholder="Es. 73.1.A - Autorimessa" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Amministratore</label>
+                        <input type="text" id="administrator" placeholder="Es. Studio Rossi" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Email Amministratore</label>
+                        <input type="email" id="adminEmail" placeholder="Es. studio@rossiamministrazioni.it" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100 mt-6">
+                    <button type="button" onclick="closeModal()" class="px-5 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition">Annulla</button>
+                    <!-- TASTO SALVA / AGGIORNA DINAMICO -->
+                    <button type="submit" id="submitBtn" class="px-6 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition active:scale-95">
+                        Salva Pratica
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODALE CONFIGURAZIONE WEBHOOK GOOGLE SHEETS -->
+    <div id="webhookModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4 border border-slate-100">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2 text-indigo-600">
+                    <i data-lucide="link" class="w-5 h-5"></i>
+                    <h3 class="text-base font-bold text-slate-900">Sincronizzazione Google Sheets</h3>
+                </div>
+                <button onclick="closeWebhookModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-3">
+                <p class="text-xs text-slate-500 leading-relaxed">
+                    Inserisci l'URL dell'Applicazione Web rilasciata da Google Apps Script per inviare i dati al foglio Google ("Sheet 1").
+                </p>
+                <input type="url" id="webhookUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs bg-slate-50 font-mono">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeWebhookModal()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl">Annulla</button>
+                <button onclick="syncToGoogleSheets()" class="px-4 py-2 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl shadow-md transition flex items-center gap-1.5">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i> Invia & Sincronizza
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE DI CONFERMA PERSONALIZZATA (Invece di confirm()) -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl space-y-4 text-center border border-slate-100">
+            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+                <i data-lucide="alert-circle" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h3 id="confirmTitle" class="text-base font-bold text-slate-900">Sei sicuro?</h3>
+                <p id="confirmMessage" class="text-xs text-slate-500 mt-1">Questa azione non potrà essere annullata.</p>
+            </div>
+            <div class="flex justify-center gap-2 pt-2">
+                <button id="confirmCancelBtn" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Annulla</button>
+                <button id="confirmOkBtn" class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Stato dell'applicazione
+        let practices = [];
+        let currentFilter = 'all';
+        let pendingConfirmCallback = null;
+
+        // Dati iniziali di esempio
+        const initialSampleData = [
+            {
+                id: '1',
+                pi: 'PI-8821',
+                deadline: '2026-09-15',
+                entityName: 'Condominio Stella Polare',
+                activity: '73.1.A - Autorimessa',
+                address: 'Via Garibaldi 42',
+                municipality: 'Milano',
+                administrator: 'Studio Immobiliare Alpha',
+                adminEmail: 'info@alphagroup.it'
+            },
+            {
+                id: '2',
+                pi: 'PI-3342',
+                deadline: '2026-08-10',
+                entityName: 'Residenza Bellavista',
+                activity: '77.2.B - Edificio Civile Abitazione',
+                address: 'Corso Vittorio Emanuele II 110',
+                municipality: 'Torino',
+                administrator: 'Geom. Roberto Bianchi',
+                adminEmail: 'r.bianchi@studio.it'
+            },
+            {
+                id: '3',
+                pi: 'PI-9901',
+                deadline: '2026-12-01',
+                entityName: 'Condominio Sole & Mare',
+                activity: '74.1.A - Centrale Termica',
+                address: 'Via Carducci 5',
+                municipality: 'Monza',
+                administrator: 'Studio Verdi & Partners',
+                adminEmail: 'amministrazione@verdi.it'
+            }
+        ];
+
+        window.onload = () => {
+            loadPractices();
             lucide.createIcons();
-
-            setTimeout(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            }, 10);
-
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 4000);
-        };
-
-        // Custom Confirmation Dialog Function (Replaces confirm)
-        window.showConfirm = (title, message, onConfirm) => {
-            const modal = document.getElementById('confirmModal');
-            document.getElementById('confirmTitle').textContent = title;
-            document.getElementById('confirmMessage').textContent = message;
-            
-            const okBtn = document.getElementById('confirmOkBtn');
-            const cancelBtn = document.getElementById('confirmCancelBtn');
-
-            const cleanup = () => {
-                modal.classList.add('hidden');
-                okBtn.onclick = null;
-                cancelBtn.onclick = null;
-            };
-
-            okBtn.onclick = () => {
-                cleanup();
-                onConfirm();
-            };
-
-            cancelBtn.onclick = cleanup;
-            modal.classList.remove('hidden');
-        };
-
-        async function init() {
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                const auth = getAuth(app);
-                await signInAnonymously(auth);
-                onAuthStateChanged(auth, u => { if(u) setupSync(); });
-            } catch (e) { showError(e.message); }
-        }
-
-        function showError(msg) {
-            document.getElementById('errorMessage').classList.remove('hidden');
-            document.getElementById('errorDetails').innerText = msg;
-        }
-
-        function setupSync() {
-            onSnapshot(collection(db, 'scadenze_pratiche'), snap => {
-                practices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                updateCounts();
-                render();
-            });
-        }
-
-        function updateCounts() {
-            const now = new Date().setHours(0,0,0,0);
-            const counts = { all: practices.length, expired: 0, imminent: 0, valid: 0 };
-            
-            practices.forEach(p => {
-                const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
-                if (diff < 0) counts.expired++;
-                else if (diff <= 60) counts.imminent++;
-                else counts.valid++;
-            });
-
-            document.getElementById('count-all').innerText = counts.all;
-            document.getElementById('count-expired').innerText = counts.expired;
-            document.getElementById('count-imminent').innerText = counts.imminent;
-            document.getElementById('count-valid').innerText = counts.valid;
-        }
-
-        window.setFilter = (type) => {
-            currentFilter = type;
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`btn-${type}`).classList.add('active');
             render();
         };
 
-        window.render = () => {
-            const term = document.getElementById('searchBar').value.toLowerCase();
-            const body = document.getElementById('tableBody');
-            const emptyState = document.getElementById('emptyState');
-            const now = new Date().setHours(0,0,0,0);
-            
-            let filtered = practices.filter(p => 
-                (p.pi || "").toLowerCase().includes(term) || 
-                (p.entityName || "").toLowerCase().includes(term) ||
-                (p.municipality || "").toLowerCase().includes(term) ||
-                (p.address || "").toLowerCase().includes(term) ||
-                (p.activity || "").toLowerCase().includes(term)
-            );
-
-            if (currentFilter !== 'all') {
-                filtered = filtered.filter(p => {
-                    const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
-                    if (currentFilter === 'expired') return diff < 0;
-                    if (currentFilter === 'imminent') return diff >= 0 && diff <= 60;
-                    if (currentFilter === 'valid') return diff > 60;
-                    return true;
-                });
-            }
-
-            filtered.sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
-            
-            if (filtered.length === 0) {
-                body.innerHTML = '';
-                emptyState.classList.remove('hidden');
-                return;
-            }
-            emptyState.classList.add('hidden');
-
-            body.innerHTML = filtered.map(p => {
-                const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
-                let statusClass = "valid";
-                let badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                
-                if (diff < 0) {
-                    statusClass = "expired";
-                    badgeStyle = "bg-red-50 text-red-700 border-red-200 font-bold";
-                } else if (diff <= 60) {
-                    statusClass = "imminent";
-                    badgeStyle = "bg-amber-50 text-amber-700 border-amber-200 font-bold";
+        // Carica i dati dal localStorage o dai dati di esempio
+        function loadPractices() {
+            const saved = localStorage.getItem('prince_fire_practices');
+            if (saved) {
+                try {
+                    practices = JSON.parse(saved);
+                } catch(e) {
+                    practices = initialSampleData;
                 }
-
-                return `<tr class="hover:bg-slate-50/80 transition-colors ${statusClass}">
-                    <td class="p-4 pl-6 font-mono font-bold text-slate-900">${p.pi ? '#' + p.pi : '-'}</td>
-                    <td class="p-4 font-bold text-center">
-                        <span class="px-2.5 py-1 rounded-full text-xs border ${badgeStyle}">
-                            ${p.deadline ? p.deadline.split('-').reverse().join('/') : '-'}
-                        </span>
-                    </td>
-                    <td class="p-4">
-                        <div class="font-bold text-slate-800">${p.entityName || 'N.D.'}</div>
-                        <div class="text-[11px] text-slate-400 font-medium">${p.administrator ? 'Rif: ' + p.administrator : ''}</div>
-                    </td>
-                    <td class="p-4 text-xs font-semibold text-slate-700 uppercase">${p.municipality || '-'}</td>
-                    <td class="p-4 text-xs text-slate-500 uppercase">${p.address || '-'}</td>
-                    <td class="p-4 text-xs font-bold text-indigo-600 uppercase tracking-tight">${p.activity || '-'}</td>
-                    <td class="p-4 pr-6 text-right">
-                        <div class="flex justify-end gap-1">
-                            <button onclick="edit('${p.id}')" title="Modifica" class="text-indigo-600 p-2 hover:bg-indigo-50 rounded-xl transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                            <button onclick="del('${p.id}')" title="Elimina" class="text-red-500 p-2 hover:bg-red-50 rounded-xl transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                        </div>
-                    </td>
-                </tr>`;
-            }).join('');
-            lucide.createIcons();
+            } else {
+                practices = initialSampleData;
+                saveToLocalStorage();
+            }
         }
 
-        window.exportData = () => {
-            const dataStr = JSON.stringify(practices, null, 2);
-            const blob = new Blob([dataStr], { type: "application/json" });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = `backup_prince_fire_${new Date().toISOString().split('T')[0]}.json`;
-            link.click();
-            showToast("Backup JSON scaricato con successo!", "success");
-        };
+        function saveToLocalStorage() {
+            localStorage.setItem('prince_fire_practices', JSON.stringify(practices));
+        }
 
-        window.importFromJson = (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    if (!Array.isArray(data)) throw new Error("Formato JSON non valido.");
-                    
-                    showConfirm(
-                        "Ripristina Backup JSON",
-                        `Stai per ripristinare ${data.length} pratiche dal backup. I dati esistenti con lo stesso codice verranno aggiornati. Procedere?`,
-                        async () => {
-                            const batch = writeBatch(db);
-                            data.forEach(p => {
-                                const existing = practices.find(ex => ex.pi === p.pi);
-                                const cleanData = { ...p };
-                                delete cleanData.id;
-                                cleanData.updatedAt = serverTimestamp();
-
-                                if (existing) {
-                                    batch.update(doc(db, 'scadenze_pratiche', existing.id), cleanData);
-                                } else {
-                                    batch.set(doc(collection(db, 'scadenze_pratiche')), cleanData);
-                                }
-                            });
-                            await batch.commit();
-                            showToast("Database ripristinato con successo!", "success");
-                        }
-                    );
-                } catch (err) {
-                    showToast("Errore nel caricamento del file: " + err.message, "error");
-                }
-                event.target.value = "";
+        // Notifiche Toast
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let bgColors = {
+                success: 'bg-emerald-600 text-white',
+                warning: 'bg-amber-500 text-white',
+                error: 'bg-rose-600 text-white',
+                info: 'bg-indigo-600 text-white'
             };
-            reader.readAsText(file);
+
+            let icons = {
+                success: 'check-circle-2',
+                warning: 'alert-triangle',
+                error: 'x-circle',
+                info: 'info'
+            };
+
+            toast.className = `toast-animate pointer-events-auto flex items-center p-3.5 rounded-xl shadow-xl text-xs font-semibold ${bgColors[type] || bgColors.info}`;
+            toast.innerHTML = `
+                <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 mr-2 shrink-0"></i>
+                <span class="flex-1">${message}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons({ props: {}, name: null });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Confirm Modal personalizzato
+        function showConfirm(title, message, callback) {
+            document.getElementById('confirmTitle').innerText = title;
+            document.getElementById('confirmMessage').innerText = message;
+            pendingConfirmCallback = callback;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        document.getElementById('confirmCancelBtn').onclick = () => {
+            document.getElementById('confirmModal').classList.add('hidden');
+            pendingConfirmCallback = null;
         };
 
-        window.exportToExcel = () => {
-            const headers = ["PI", "Scadenza", "Condominio_Societa", "Comune", "Indirizzo", "Attivita", "Amministratore", "Email_Amministratore"];
-            const excelHeader = "sep=;\n";
-            const rows = practices.map(p => [p.pi||"", p.deadline||"", p.entityName||"", p.municipality||"", p.address||"", p.activity||"", p.administrator||"", p.adminEmail||""]);
-            const csv = excelHeader + [headers, ...rows].map(e => e.map(String).map(v => `"${v.replaceAll('"', '""')}"`).join(";")).join("\n");
-            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = `export_fire_${new Date().toISOString().split('T')[0]}.csv`;
-            link.click();
-            showToast("File Excel/CSV esportato!", "success");
+        document.getElementById('confirmOkBtn').onclick = () => {
+            document.getElementById('confirmModal').classList.add('hidden');
+            if (pendingConfirmCallback) pendingConfirmCallback();
+            pendingConfirmCallback = null;
         };
 
-        window.importFromExcel = async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                let content = e.target.result;
-                if (content.startsWith("sep=")) content = content.substring(content.indexOf("\n") + 1);
-                const lines = content.split(/\r?\n/).filter(line => line.trim() !== "");
-                if (lines.length < 2) return;
-                const firstLine = lines[0];
-                const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
+        // Calcolo giorni rimanenti e stato
+        function getDeadlineStatus(deadlineStr) {
+            if (!deadlineStr) return { status: 'unknown', days: 0, label: 'Data non impostata' };
+            
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            const deadline = new Date(deadlineStr);
+            deadline.setHours(0,0,0,0);
+
+            const diffTime = deadline - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+                return { status: 'expired', days: diffDays, label: `Scaduta da ${Math.abs(diffDays)} gg` };
+            } else if (diffDays <= 60) {
+                return { status: 'imminent', days: diffDays, label: `Scade tra ${diffDays} gg` };
+            } else {
+                return { status: 'valid', days: diffDays, label: `In regola (${diffDays} gg)` };
+            }
+        }
+
+        // Rendering principale della tabella e statistiche
+        window.render = () => {
+            const tableBody = document.getElementById('practiceTableBody');
+            const searchVal = document.getElementById('searchInput').value.toLowerCase().trim();
+            
+            let counts = { all: practices.length, expired: 0, imminent: 0, valid: 0 };
+
+            practices.forEach(p => {
+                const st = getDeadlineStatus(p.deadline).status;
+                if (counts[st] !== undefined) counts[st]++;
+            });
+
+            document.getElementById('statTotal').innerText = counts.all;
+            document.getElementById('statExpired').innerText = counts.expired;
+            document.getElementById('statImminent').innerText = counts.imminent;
+            document.getElementById('statValid').innerText = counts.valid;
+
+            // Filtro e ricerca
+            const filtered = practices.filter(p => {
+                const st = getDeadlineStatus(p.deadline).status;
+                const matchesFilter = (currentFilter === 'all') || (st === currentFilter);
                 
-                const parseCSVLine = (text, delim) => {
-                    const regex = new RegExp(`(?:${delim}|\\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^"${delim}\\n\\r]*))`, 'g');
-                    const results = [];
-                    let match;
-                    while ((match = regex.exec(text)) !== null) {
-                        let val = match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2];
-                        results.push(val ? val.trim() : "");
-                    }
-                    return results;
-                };
+                const matchesSearch = !searchVal || 
+                    (p.entityName && p.entityName.toLowerCase().includes(searchVal)) ||
+                    (p.pi && p.pi.toLowerCase().includes(searchVal)) ||
+                    (p.municipality && p.municipality.toLowerCase().includes(searchVal)) ||
+                    (p.address && p.address.toLowerCase().includes(searchVal)) ||
+                    (p.administrator && p.administrator.toLowerCase().includes(searchVal));
 
-                const dataRows = lines.slice(1).map(line => parseCSVLine(line, delimiter));
+                return matchesFilter && matchesSearch;
+            });
 
-                showConfirm(
-                    "Importa File Excel/CSV",
-                    `Rilevate ${dataRows.length} righe nel file. Procedere con l'importazione e l'aggiornamento?`,
-                    async () => {
-                        const batch = writeBatch(db);
-                        for (const row of dataRows) {
-                            const piCode = row[0] ? row[0].trim() : null;
-                            if (!piCode) continue;
-                            const practiceData = {
-                                pi: piCode,
-                                deadline: row[1] || "",
-                                entityName: row[2] || "",
-                                municipality: row[3] || "",
-                                address: row[4] || "",
-                                activity: row[5] || "",
-                                administrator: row[6] || "",
-                                adminEmail: row[7] || "",
-                                mailSent60: false,
-                                updatedAt: serverTimestamp()
-                            };
-                            const existing = practices.find(p => p.pi === piCode);
-                            if (existing) batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
-                            else batch.set(doc(collection(db, 'scadenze_pratiche')), practiceData);
-                        }
-                        await batch.commit();
-                        showToast("Importazione da Excel completata con successo!", "success");
-                        event.target.value = ""; 
-                    }
-                );
-            };
-            reader.readAsText(file);
+            if (filtered.length === 0) {
+                tableBody.innerHTML = '';
+                document.getElementById('emptyState').classList.remove('hidden');
+                return;
+            } else {
+                document.getElementById('emptyState').classList.add('hidden');
+            }
+
+            // Ordinamento per scadenza più vicina
+            filtered.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+            tableBody.innerHTML = filtered.map(p => {
+                const st = getDeadlineStatus(p.deadline);
+                
+                let badgeClass = '';
+                if (st.status === 'expired') badgeClass = 'bg-rose-100 text-rose-700 border-rose-200';
+                else if (st.status === 'imminent') badgeClass = 'bg-amber-100 text-amber-700 border-amber-200';
+                else badgeClass = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+
+                const formattedDate = p.deadline ? new Date(p.deadline).toLocaleDateString('it-IT') : '-';
+
+                return `
+                    <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                        <td class="p-4 font-bold text-slate-900">${p.entityName || '-'}</td>
+                        <td class="p-4 font-mono text-indigo-600 font-bold">${p.pi || '-'}</td>
+                        <td class="p-4">
+                            <div class="font-semibold text-slate-800">${p.municipality || '-'}</div>
+                            <div class="text-[11px] text-slate-400">${p.address || ''}</div>
+                        </td>
+                        <td class="p-4 text-slate-600">${p.activity || '-'}</td>
+                        <td class="p-4">
+                            <div class="font-medium text-slate-800">${p.administrator || '-'}</div>
+                            <div class="text-[11px] text-indigo-500">${p.adminEmail || ''}</div>
+                        </td>
+                        <td class="p-4 text-center font-bold text-slate-700">${formattedDate}</td>
+                        <td class="p-4 text-center">
+                            <span class="inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${badgeClass}">
+                                ${st.label}
+                            </span>
+                        </td>
+                        <td class="p-4 text-right space-x-1">
+                            <button onclick="editPractice('${p.id}')" title="Modifica Pratica" class="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg transition">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="delPractice('${p.id}')" title="Elimina Pratica" class="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            lucide.createIcons();
         };
 
-        window.openModal = () => { 
-            document.getElementById('practiceForm').reset(); 
-            document.getElementById('practiceId').value = ''; 
-            document.getElementById('modalTitle').innerText = 'Nuova Pratica'; 
-            document.getElementById('practiceModal').classList.remove('hidden'); 
+        window.setFilter = (filter) => {
+            currentFilter = filter;
+            
+            ['All', 'Expired', 'Imminent', 'Valid'].forEach(f => {
+                const btn = document.getElementById(`btnFilter${f}`);
+                if (f.toLowerCase() === filter) {
+                    btn.className = "px-3 py-1.5 rounded-lg bg-white shadow-sm text-slate-800 font-bold";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800";
+                }
+            });
+
+            render();
         };
 
-        window.closeModal = () => document.getElementById('practiceModal').classList.add('hidden');
+        window.openModal = () => {
+            document.getElementById('practiceForm').reset();
+            document.getElementById('practiceId').value = '';
+            document.getElementById('modalTitle').innerText = 'Nuova Pratica';
+            document.getElementById('submitBtn').innerText = 'Salva Pratica';
+            document.getElementById('practiceModal').classList.remove('hidden');
+        };
 
-        window.edit = (id) => {
+        window.closeModal = () => {
+            document.getElementById('practiceModal').classList.add('hidden');
+        };
+
+        window.editPractice = (id) => {
             const p = practices.find(x => x.id === id);
             if (!p) return;
-            document.getElementById('practiceId').value = id;
+
+            document.getElementById('practiceId').value = p.id;
             document.getElementById('pi').value = p.pi || '';
             document.getElementById('deadline').value = p.deadline || '';
             document.getElementById('entityName').value = p.entityName || '';
@@ -572,49 +586,207 @@
             document.getElementById('administrator').value = p.administrator || '';
             document.getElementById('adminEmail').value = p.adminEmail || '';
             document.getElementById('municipality').value = p.municipality || '';
-            document.getElementById('modalTitle').innerText = 'Modifica Pratica';
+
+            // TASTO DINAMICO MOSTRA "Aggiorna Pratica"
+            document.getElementById('modalTitle').innerText = 'Modifica Pratica CPI';
+            document.getElementById('submitBtn').innerText = 'Aggiorna Pratica';
             document.getElementById('practiceModal').classList.remove('hidden');
         };
 
-        window.del = (id) => { 
-            showConfirm(
-                "Elimina Pratica",
-                "Sei sicuro di voler eliminare definitivamente questa pratica antincendio?",
-                async () => {
-                    await deleteDoc(doc(db, 'scadenze_pratiche', id));
-                    showToast("Pratica eliminata dal registro.", "warning");
-                }
-            );
-        };
-
-        document.getElementById('practiceForm').onsubmit = async (e) => {
+        window.savePractice = (e) => {
             e.preventDefault();
             const id = document.getElementById('practiceId').value;
-            const data = {
-                pi: document.getElementById('pi').value || null,
-                deadline: document.getElementById('deadline').value || null,
-                entityName: document.getElementById('entityName').value || null,
-                activity: document.getElementById('activity').value || null,
-                address: document.getElementById('address').value || null,
-                administrator: document.getElementById('administrator').value || null,
-                adminEmail: document.getElementById('adminEmail').value || null,
-                municipality: document.getElementById('municipality').value || null,
-                mailSent60: false, 
-                updatedAt: serverTimestamp()
+
+            const practiceData = {
+                id: id || Date.now().toString(),
+                pi: document.getElementById('pi').value.trim(),
+                deadline: document.getElementById('deadline').value,
+                entityName: document.getElementById('entityName').value.trim(),
+                activity: document.getElementById('activity').value.trim(),
+                address: document.getElementById('address').value.trim(),
+                administrator: document.getElementById('administrator').value.trim(),
+                adminEmail: document.getElementById('adminEmail').value.trim(),
+                municipality: document.getElementById('municipality').value.trim()
             };
 
             if (id) {
-                await updateDoc(doc(db, 'scadenze_pratiche', id), data);
+                const index = practices.findIndex(p => p.id === id);
+                if (index !== -1) practices[index] = practiceData;
                 showToast("Pratica aggiornata con successo!", "success");
             } else {
-                await addDoc(collection(db, 'scadenze_pratiche'), data);
-                showToast("Nuova pratica inserita nel registro!", "success");
+                practices.unshift(practiceData);
+                showToast("Nuova pratica salvata nel registro!", "success");
             }
+
+            saveToLocalStorage();
             closeModal();
+            render();
         };
 
-        // Initialize application on load
-        init();
+        window.delPractice = (id) => {
+            showConfirm("Elimina Pratica", "Sei sicuro di voler eliminare questa pratica dal registro?", () => {
+                practices = practices.filter(p => p.id !== id);
+                saveToLocalStorage();
+                render();
+                showToast("Pratica eliminata dal registro.", "warning");
+            });
+        };
+
+        // Tasto AGGIORNA / RICARICA DATI
+        window.refreshData = () => {
+            loadPractices();
+            render();
+            showToast("Registro pratiche ricaricato e aggiornato!", "info");
+        };
+
+        // MODALE E SINCRONIZZAZIONE GOOGLE SHEETS
+        window.openWebhookModal = () => {
+            const savedUrl = localStorage.getItem('cpi_webhook_url') || '';
+            document.getElementById('webhookUrlInput').value = savedUrl;
+            document.getElementById('webhookModal').classList.remove('hidden');
+        };
+
+        window.closeWebhookModal = () => {
+            document.getElementById('webhookModal').classList.add('hidden');
+        };
+
+        window.syncToGoogleSheets = async () => {
+            const url = document.getElementById('webhookUrlInput').value.trim();
+            if (!url) {
+                showToast("Inserisci un URL Apps Script valido!", "warning");
+                return;
+            }
+
+            localStorage.setItem('cpi_webhook_url', url);
+            showToast("Sincronizzazione in corso con Google Sheets...", "info");
+
+            const payload = practices.map(p => ({
+                condominio: p.entityName || '',
+                piCode: p.pi || '',
+                comune: p.municipality || '',
+                indirizzo: p.address || '',
+                scadenza: p.deadline || ''
+            }));
+
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                showToast("Dati inviati a Google Sheets con successo!", "success");
+                closeWebhookModal();
+            } catch (err) {
+                showToast("Errore durante la sincronizzazione: " + err.message, "error");
+            }
+        };
+
+        // ESPORTA EXCEL (CSV / XLSX)
+        window.exportToExcel = () => {
+            if (practices.length === 0) {
+                showToast("Nessuna pratica presente da esportare!", "warning");
+                return;
+            }
+
+            const exportData = practices.map(p => ({
+                "Condominio": p.entityName || "",
+                "Codice PI": p.pi || "",
+                "Comune": p.municipality || "",
+                "Indirizzo": p.address || "",
+                "Attivita": p.activity || "",
+                "Amministratore": p.administrator || "",
+                "Email Amministratore": p.adminEmail || "",
+                "Data Scadenza": p.deadline || ""
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Pratiche CPI");
+            XLSX.writeFile(wb, `Pratiche_PRINCE_Fire_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+            showToast("File Excel generato e scaricato!", "success");
+        };
+
+        // IMPORTA EXCEL / CSV
+        window.importFromExcel = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(firstSheet);
+
+                    let importedCount = 0;
+                    json.forEach(row => {
+                        const pi = row["Codice PI"] || row["PI"] || row["piCode"] || row["pi"] || "";
+                        const entityName = row["Condominio"] || row["entityName"] || row["Condominio / Ente"] || "";
+                        const deadline = row["Data Scadenza"] || row["Scadenza"] || row["deadline"] || "";
+
+                        if (entityName || pi) {
+                            practices.push({
+                                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                                pi: String(pi),
+                                entityName: String(entityName),
+                                municipality: String(row["Comune"] || row["municipality"] || ""),
+                                address: String(row["Indirizzo"] || row["address"] || ""),
+                                activity: String(row["Attivita"] || row["activity"] || ""),
+                                administrator: String(row["Amministratore"] || row["administrator"] || ""),
+                                adminEmail: String(row["Email Amministratore"] || row["adminEmail"] || ""),
+                                deadline: String(deadline)
+                            });
+                            importedCount++;
+                        }
+                    });
+
+                    saveToLocalStorage();
+                    render();
+                    showToast(`Importate con successo ${importedCount} pratiche!`, "success");
+                } catch(err) {
+                    showToast("Errore durante l'importazione del file Excel: " + err.message, "error");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        };
+
+        // BACKUP & RIPRISTINO JSON
+        window.exportData = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(practices, null, 2));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `Backup_PRINCE_Fire_${new Date().toISOString().slice(0,10)}.json`);
+            dlAnchorElem.click();
+            showToast("Backup JSON creato con successo!", "success");
+        };
+
+        window.importFromJson = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported)) {
+                        practices = imported;
+                        saveToLocalStorage();
+                        render();
+                        showToast("Ripristino dati JSON completato!", "success");
+                    } else {
+                        showToast("Formato JSON non valido!", "error");
+                    }
+                } catch(err) {
+                    showToast("Errore nel file JSON: " + err.message, "error");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        };
     </script>
 </body>
 </html>
