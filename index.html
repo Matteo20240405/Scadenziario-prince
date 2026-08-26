@@ -3,181 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scadenziario PRINCE Fire - Gestione Sheet</title>
+    <title>Scadenziario PRINCE Fire - Gestione Sheet & Cloud</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .card { border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .imminent { background-color: #fefce8 !important; border-left: 4px solid #facc15; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card { border-radius: 1rem; box-shadow: 0 4px 15px -1px rgba(0, 0, 0, 0.05); }
+        .imminent { background-color: #fffbeb !important; border-left: 4px solid #f59e0b; }
         .expired { background-color: #fef2f2 !important; border-left: 4px solid #ef4444; }
-        #errorMessage { display: none; }
+        .valid { border-left: 4px solid #10b981; }
         .filter-btn.active { border-color: #2563eb; background-color: #eff6ff; color: #1e40af; ring: 2px; --tw-ring-color: #3b82f6; }
     </style>
 </head>
-<body class="p-4 md:p-8 text-gray-800">
+<body class="p-4 md:p-8 text-slate-800 min-h-screen">
 
-    <!-- Messaggio Errore -->
-    <div id="errorMessage" class="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 card">
-        <p class="font-bold text-lg">Errore di Configurazione</p>
-        <p id="errorDetails" class="text-sm"></p>
+    <!-- CONTAINER TOAST NOTIFICHE -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+    <!-- MESSAGGIO ERRORE CONFIGURAZIONE -->
+    <div id="errorMessage" class="hidden mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 card shadow-sm">
+        <p class="font-bold text-base flex items-center gap-2">
+            <i data-lucide="alert-triangle" class="w-5 h-5"></i> Errore di Configurazione
+        </p>
+        <p id="errorDetails" class="text-sm mt-1"></p>
+    </div>
+
+    <!-- MODALE DI CONFERMA PERSONALIZZATA (Sostituto di confirm()) -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50 transition-opacity">
+        <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4 border border-slate-100">
+            <div class="flex items-center gap-3 text-amber-500">
+                <div class="p-3 bg-amber-50 rounded-xl">
+                    <i data-lucide="help-circle" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 id="confirmTitle" class="text-lg font-bold text-slate-900">Conferma Operazione</h3>
+                    <p id="confirmMessage" class="text-xs text-slate-500 mt-0.5">Sei sicuro di voler procedere?</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button id="confirmCancelBtn" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">Annulla</button>
+                <button id="confirmOkBtn" class="px-4 py-2 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl shadow-md transition">Procedi</button>
+            </div>
+        </div>
     </div>
 
     <!-- MODALE GESTIONE PRATICA -->
-    <div id="practiceModal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white w-full max-w-lg p-6 card max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-4">
-                <h2 id="modalTitle" class="text-2xl font-bold text-gray-800">Gestione Pratica</h2>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
+    <div id="practiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white w-full max-w-lg p-6 rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-100">
+            <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <span class="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <i data-lucide="file-text" class="w-5 h-5"></i>
+                    </span>
+                    <h2 id="modalTitle" class="text-xl font-black text-slate-900">Gestione Pratica</h2>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <form id="practiceForm" class="space-y-4">
                 <input type="hidden" id="practiceId">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-600 mb-1">Codice PI</label>
-                        <input type="text" id="pi" placeholder="Es. 12345" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Codice PI</label>
+                        <input type="text" id="pi" placeholder="Es. 12345" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-600 mb-1">Scadenza</label>
-                        <input type="date" id="deadline" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Scadenza *</label>
+                        <input type="date" id="deadline" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition" required>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Condominio / Società</label>
-                    <input type="text" id="entityName" placeholder="Nome del condominio" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Condominio / Società *</label>
+                    <input type="text" id="entityName" placeholder="Nome del condominio o società" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition" required>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Attività</label>
-                    <input type="text" id="activity" placeholder="Es. Autorimessa, Centrale Termica, ecc." class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Attività</label>
+                    <input type="text" id="activity" placeholder="Es. Autorimessa, Centrale Termica, ecc." class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-600 mb-1">Indirizzo</label>
-                        <input type="text" id="address" placeholder="Via/Piazza e civico" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Indirizzo</label>
+                        <input type="text" id="address" placeholder="Via/Piazza e civico" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-600 mb-1">Comune</label>
-                        <input type="text" id="municipality" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Comune</label>
+                        <input type="text" id="municipality" placeholder="Es. Roma" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-600 mb-1">Amministratore</label>
-                        <input type="text" id="administrator" placeholder="Nome" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Amministratore</label>
+                        <input type="text" id="administrator" placeholder="Nome referente" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-600 mb-1">Email Amministratore</label>
-                        <input type="email" id="adminEmail" placeholder="mail@esempio.it" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email Referente</label>
+                        <input type="email" id="adminEmail" placeholder="mail@esempio.it" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50 focus:bg-white transition">
                     </div>
                 </div>
                 <input type="hidden" id="mailSent60" value="false">
 
-                <div class="flex justify-end space-x-3 pt-4">
-                    <button type="button" onclick="closeModal()" class="px-5 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition">Annulla</button>
-                    <button type="submit" class="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Salva Pratica</button>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100 mt-6">
+                    <button type="button" onclick="closeModal()" class="px-5 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition">Annulla</button>
+                    <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition active:scale-95">Salva Pratica</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- HEADER -->
-    <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-            <h1 class="text-3xl font-black text-gray-900 flex items-center">
-                <span class="bg-blue-600 p-2 rounded-lg mr-3 shadow-lg shadow-blue-200">
-                    <i data-lucide="shield-check" class="text-white w-8 h-8"></i>
-                </span>
-                Scadenziario PRINCE <span class="text-blue-600 ml-2 italic">Fire</span>
-            </h1>
-            <p class="text-gray-500 mt-1 font-medium italic">Gestione Integrata Sheet & Cloud</p>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-            <!-- EXPORT EXCEL -->
-            <button onclick="exportToExcel()" class="flex items-center px-3 py-1.5 bg-green-600 text-white text-[11px] font-bold rounded-lg hover:bg-green-700 transition shadow-sm">
-                <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Excel
-            </button>
+    <div class="max-w-7xl mx-auto space-y-6">
+
+        <!-- HEADER -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 card border border-slate-100">
+            <div>
+                <h1 class="text-3xl font-black text-slate-900 flex items-center tracking-tight">
+                    <span class="bg-indigo-600 p-2.5 rounded-2xl mr-3 shadow-lg shadow-indigo-200 flex items-center justify-center">
+                        <i data-lucide="shield-check" class="text-white w-7 h-7"></i>
+                    </span>
+                    Scadenziario PRINCE <span class="text-indigo-600 ml-2 italic">Fire</span>
+                </h1>
+                <p class="text-slate-500 text-xs mt-1 font-medium">Registro Cloud & Sincronizzazione Scadenze Antincendio</p>
+            </div>
             
-            <!-- IMPORT EXCEL -->
-            <label class="flex items-center px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-lg hover:bg-emerald-200 cursor-pointer transition border border-emerald-200">
-                <i data-lucide="file-up" class="w-4 h-4 mr-1.5"></i> Importa Excel
-                <input type="file" id="importExcelFile" class="hidden" accept=".csv" onchange="importFromExcel(event)">
-            </label>
+            <!-- AZIONI BACKUP / ESFORT / IMPORT -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- EXPORT EXCEL -->
+                <button onclick="exportToExcel()" class="flex items-center px-3.5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm active:scale-95">
+                    <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Excel
+                </button>
+                
+                <!-- IMPORT EXCEL -->
+                <label class="flex items-center px-3.5 py-2 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl hover:bg-emerald-100 cursor-pointer transition border border-emerald-200/60 active:scale-95">
+                    <i data-lucide="file-up" class="w-4 h-4 mr-1.5"></i> Importa Excel
+                    <input type="file" id="importExcelFile" class="hidden" accept=".csv" onchange="importFromExcel(event)">
+                </label>
 
-            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+                <div class="w-px h-6 bg-slate-200 mx-1"></div>
 
-            <!-- BACKUP JSON -->
-            <button onclick="exportData()" class="flex items-center px-3 py-1.5 bg-gray-800 text-white text-[11px] font-bold rounded-lg hover:bg-black transition">
-                <i data-lucide="database" class="w-4 h-4 mr-1.5"></i> Backup JSON
+                <!-- BACKUP JSON -->
+                <button onclick="exportData()" class="flex items-center px-3.5 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition active:scale-95">
+                    <i data-lucide="database" class="w-4 h-4 mr-1.5"></i> Backup JSON
+                </button>
+
+                <!-- RIPRISTINA JSON -->
+                <label class="flex items-center px-3.5 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 cursor-pointer transition border border-slate-200 active:scale-95">
+                    <i data-lucide="history" class="w-4 h-4 mr-1.5"></i> Ripristina JSON
+                    <input type="file" id="importJsonFile" class="hidden" accept=".json" onchange="importFromJson(event)">
+                </label>
+            </div>
+        </header>
+
+        <!-- DASHBOARD STATISTICHE E FILTRI -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button onclick="setFilter('all')" id="btn-all" class="filter-btn active bg-white p-5 card border-2 border-transparent transition-all flex items-center justify-between text-left group">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Totali</p>
+                    <p id="count-all" class="text-3xl font-black text-slate-900 mt-1">0</p>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl group-hover:bg-indigo-50 transition">
+                    <i data-lucide="list" class="text-slate-400 group-hover:text-indigo-600"></i>
+                </div>
             </button>
 
-            <!-- RIPRISTINA JSON -->
-            <label class="flex items-center px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-lg hover:bg-gray-200 cursor-pointer transition border border-gray-300">
-                <i data-lucide="history" class="w-4 h-4 mr-1.5"></i> Ripristina JSON
-                <input type="file" id="importJsonFile" class="hidden" accept=".json" onchange="importFromJson(event)">
-            </label>
-        </div>
-    </header>
+            <button onclick="setFilter('expired')" id="btn-expired" class="filter-btn bg-white p-5 card border-2 border-transparent transition-all flex items-center justify-between text-left group">
+                <div>
+                    <p class="text-[10px] font-black text-red-400 uppercase tracking-widest">Scadute</p>
+                    <p id="count-expired" class="text-3xl font-black text-red-600 mt-1">0</p>
+                </div>
+                <div class="p-3 bg-red-50 rounded-xl transition">
+                    <i data-lucide="alert-circle" class="text-red-500"></i>
+                </div>
+            </button>
 
-    <!-- DASHBOARD FILTRI -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <button onclick="setFilter('all')" id="btn-all" class="filter-btn active bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
-            <div class="text-left">
-                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Totali</p>
-                <p id="count-all" class="text-2xl font-black text-gray-800">0</p>
-            </div>
-            <i data-lucide="list" class="text-gray-300"></i>
-        </button>
-        <button onclick="setFilter('expired')" id="btn-expired" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
-            <div class="text-left">
-                <p class="text-xs font-bold text-red-400 uppercase tracking-wider">Scadute</p>
-                <p id="count-expired" class="text-2xl font-black text-red-600">0</p>
-            </div>
-            <i data-lucide="alert-circle" class="text-red-200"></i>
-        </button>
-        <button onclick="setFilter('imminent')" id="btn-imminent" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
-            <div class="text-left">
-                <p class="text-xs font-bold text-yellow-500 uppercase tracking-wider">In Scadenza</p>
-                <p id="count-imminent" class="text-2xl font-black text-yellow-600">0</p>
-            </div>
-            <i data-lucide="clock" class="text-yellow-200"></i>
-        </button>
-        <button onclick="setFilter('valid')" id="btn-valid" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
-            <div class="text-left">
-                <p class="text-xs font-bold text-green-400 uppercase tracking-wider">Regolari</p>
-                <p id="count-valid" class="text-2xl font-black text-green-600">0</p>
-            </div>
-            <i data-lucide="check-circle" class="text-green-200"></i>
-        </button>
-    </div>
+            <button onclick="setFilter('imminent')" id="btn-imminent" class="filter-btn bg-white p-5 card border-2 border-transparent transition-all flex items-center justify-between text-left group">
+                <div>
+                    <p class="text-[10px] font-black text-amber-500 uppercase tracking-widest">In Scadenza</p>
+                    <p id="count-imminent" class="text-3xl font-black text-amber-600 mt-1">0</p>
+                </div>
+                <div class="p-3 bg-amber-50 rounded-xl transition">
+                    <i data-lucide="clock" class="text-amber-500"></i>
+                </div>
+            </button>
 
-    <!-- TABELLA -->
-    <div class="bg-white card overflow-hidden border border-gray-100">
-        <div class="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50/30">
-            <div class="relative w-full md:w-96">
-                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                <input type="text" id="searchBar" oninput="render()" placeholder="Cerca..." class="w-full bg-white border border-gray-200 py-2.5 pl-10 pr-4 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
-            </div>
-            <button onclick="openModal()" class="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition flex items-center justify-center shadow-lg shadow-blue-200">
-                <i data-lucide="plus" class="w-5 h-5 mr-2"></i> Nuova Pratica
+            <button onclick="setFilter('valid')" id="btn-valid" class="filter-btn bg-white p-5 card border-2 border-transparent transition-all flex items-center justify-between text-left group">
+                <div>
+                    <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Regolari</p>
+                    <p id="count-valid" class="text-3xl font-black text-emerald-600 mt-1">0</p>
+                </div>
+                <div class="p-3 bg-emerald-50 rounded-xl transition">
+                    <i data-lucide="check-circle" class="text-emerald-500"></i>
+                </div>
             </button>
         </div>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-widest border-b border-gray-100">
-                    <tr>
-                        <th class="p-4">PI</th>
-                        <th class="p-4 text-center">Scadenza</th>
-                        <th class="p-4">Condominio/Ditta</th>
-                        <th class="p-4">Comune</th>
-                        <th class="p-4">Indirizzo</th>
-                        <th class="p-4">Attività</th>
-                        <th class="p-4 text-right">Azioni</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody" class="divide-y divide-gray-100 italic"></tbody>
-            </table>
+        <!-- TABELLA REGISTRO -->
+        <div class="bg-white card overflow-hidden border border-slate-100">
+            <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/50">
+                <div class="relative w-full md:w-96">
+                    <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="text" id="searchBar" oninput="render()" placeholder="Cerca per PI, Condominio, Comune..." class="w-full bg-white border border-slate-200 py-2.5 pl-10 pr-4 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                </div>
+                <button onclick="openModal()" class="w-full md:w-auto px-6 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-95">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Nuova Pratica
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 text-slate-400 font-bold uppercase text-[10px] tracking-widest border-b border-slate-100">
+                        <tr>
+                            <th class="p-4 pl-6">PI</th>
+                            <th class="p-4 text-center">Scadenza</th>
+                            <th class="p-4">Condominio / Ditta</th>
+                            <th class="p-4">Comune</th>
+                            <th class="p-4">Indirizzo</th>
+                            <th class="p-4">Attività</th>
+                            <th class="p-4 pr-6 text-right">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+
+            <div id="emptyState" class="hidden p-12 text-center text-slate-400 italic text-sm">
+                Nessuna pratica trovata nel registro.
+            </div>
         </div>
     </div>
 
@@ -197,6 +249,71 @@
 
         let db, practices = [], currentFilter = 'all';
 
+        // Toast Notification Function (Replaces alert)
+        window.showToast = (message, type = 'info') => {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const bgColors = {
+                success: 'bg-emerald-600 text-white',
+                error: 'bg-red-600 text-white',
+                info: 'bg-slate-900 text-white',
+                warning: 'bg-amber-500 text-white'
+            };
+
+            const icons = {
+                success: 'check-circle',
+                error: 'alert-triangle',
+                info: 'info',
+                warning: 'alert-circle'
+            };
+
+            toast.className = `pointer-events-auto p-4 rounded-xl shadow-xl flex items-center justify-between gap-3 text-xs font-semibold transition-all duration-300 transform translate-y-2 opacity-0 ${bgColors[type] || bgColors.info}`;
+            toast.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4"></i>
+                    <span>${message}</span>
+                </div>
+                <button onclick="this.parentElement.remove()" class="opacity-70 hover:opacity-100"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        };
+
+        // Custom Confirmation Dialog Function (Replaces confirm)
+        window.showConfirm = (title, message, onConfirm) => {
+            const modal = document.getElementById('confirmModal');
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            
+            const okBtn = document.getElementById('confirmOkBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+
+            okBtn.onclick = () => {
+                cleanup();
+                onConfirm();
+            };
+
+            cancelBtn.onclick = cleanup;
+            modal.classList.remove('hidden');
+        };
+
         async function init() {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -208,7 +325,7 @@
         }
 
         function showError(msg) {
-            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorMessage').classList.remove('hidden');
             document.getElementById('errorDetails').innerText = msg;
         }
 
@@ -247,13 +364,15 @@
         window.render = () => {
             const term = document.getElementById('searchBar').value.toLowerCase();
             const body = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyState');
             const now = new Date().setHours(0,0,0,0);
             
             let filtered = practices.filter(p => 
                 (p.pi || "").toLowerCase().includes(term) || 
                 (p.entityName || "").toLowerCase().includes(term) ||
                 (p.municipality || "").toLowerCase().includes(term) ||
-                (p.address || "").toLowerCase().includes(term)
+                (p.address || "").toLowerCase().includes(term) ||
+                (p.activity || "").toLowerCase().includes(term)
             );
 
             if (currentFilter !== 'all') {
@@ -268,27 +387,44 @@
 
             filtered.sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
             
+            if (filtered.length === 0) {
+                body.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
             body.innerHTML = filtered.map(p => {
                 const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
-                let statusClass = "";
-                if (diff < 0) statusClass = "expired";
-                else if (diff <= 60) statusClass = "imminent";
+                let statusClass = "valid";
+                let badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                
+                if (diff < 0) {
+                    statusClass = "expired";
+                    badgeStyle = "bg-red-50 text-red-700 border-red-200 font-bold";
+                } else if (diff <= 60) {
+                    statusClass = "imminent";
+                    badgeStyle = "bg-amber-50 text-amber-700 border-amber-200 font-bold";
+                }
 
-                return `<tr class="hover:bg-gray-50/50 transition-colors ${statusClass}">
-                    <td class="p-4 font-bold text-gray-900 tracking-tighter">${p.pi ? '#' + p.pi : '-'}</td>
+                return `<tr class="hover:bg-slate-50/80 transition-colors ${statusClass}">
+                    <td class="p-4 pl-6 font-mono font-bold text-slate-900">${p.pi ? '#' + p.pi : '-'}</td>
                     <td class="p-4 font-bold text-center">
-                        <span class="px-2 py-1 rounded ${statusClass === 'expired' ? 'text-red-700' : (statusClass === 'imminent' ? 'text-yellow-700' : '')}">
+                        <span class="px-2.5 py-1 rounded-full text-xs border ${badgeStyle}">
                             ${p.deadline ? p.deadline.split('-').reverse().join('/') : '-'}
                         </span>
                     </td>
-                    <td class="p-4 font-bold text-gray-800">${p.entityName || 'N.D.'}</td>
-                    <td class="p-4 text-xs font-semibold uppercase">${p.municipality || '-'}</td>
-                    <td class="p-4 text-xs text-gray-500 uppercase">${p.address || '-'}</td>
-                    <td class="p-4 text-xs font-bold text-blue-700 uppercase tracking-tighter">${p.activity || '-'}</td>
-                    <td class="p-4 text-right">
+                    <td class="p-4">
+                        <div class="font-bold text-slate-800">${p.entityName || 'N.D.'}</div>
+                        <div class="text-[11px] text-slate-400 font-medium">${p.administrator ? 'Rif: ' + p.administrator : ''}</div>
+                    </td>
+                    <td class="p-4 text-xs font-semibold text-slate-700 uppercase">${p.municipality || '-'}</td>
+                    <td class="p-4 text-xs text-slate-500 uppercase">${p.address || '-'}</td>
+                    <td class="p-4 text-xs font-bold text-indigo-600 uppercase tracking-tight">${p.activity || '-'}</td>
+                    <td class="p-4 pr-6 text-right">
                         <div class="flex justify-end gap-1">
-                            <button onclick="edit('${p.id}')" class="text-blue-600 p-2 hover:bg-blue-100 rounded-lg transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                            <button onclick="del('${p.id}')" class="text-red-600 p-2 hover:bg-red-100 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            <button onclick="edit('${p.id}')" title="Modifica" class="text-indigo-600 p-2 hover:bg-indigo-50 rounded-xl transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="del('${p.id}')" title="Elimina" class="text-red-500 p-2 hover:bg-red-50 rounded-xl transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                         </div>
                     </td>
                 </tr>`;
@@ -296,17 +432,16 @@
             lucide.createIcons();
         }
 
-        // --- BACKUP JSON ---
         window.exportData = () => {
             const dataStr = JSON.stringify(practices, null, 2);
             const blob = new Blob([dataStr], { type: "application/json" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = `backup_safecheck_${new Date().toISOString().split('T')[0]}.json`;
+            link.download = `backup_prince_fire_${new Date().toISOString().split('T')[0]}.json`;
             link.click();
+            showToast("Backup JSON scaricato con successo!", "success");
         };
 
-        // --- RIPRISTINA JSON ---
         window.importFromJson = (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -316,32 +451,35 @@
                     const data = JSON.parse(e.target.result);
                     if (!Array.isArray(data)) throw new Error("Formato JSON non valido.");
                     
-                    if (confirm(`Stai per ripristinare ${data.length} pratiche dal backup. I dati esistenti con lo stesso codice verranno aggiornati. Procedere?`)) {
-                        const batch = writeBatch(db);
-                        data.forEach(p => {
-                            const existing = practices.find(ex => ex.pi === p.pi);
-                            const cleanData = { ...p };
-                            delete cleanData.id; // Non usiamo l'ID del backup per evitare conflitti
-                            cleanData.updatedAt = serverTimestamp();
+                    showConfirm(
+                        "Ripristina Backup JSON",
+                        `Stai per ripristinare ${data.length} pratiche dal backup. I dati esistenti con lo stesso codice verranno aggiornati. Procedere?`,
+                        async () => {
+                            const batch = writeBatch(db);
+                            data.forEach(p => {
+                                const existing = practices.find(ex => ex.pi === p.pi);
+                                const cleanData = { ...p };
+                                delete cleanData.id;
+                                cleanData.updatedAt = serverTimestamp();
 
-                            if (existing) {
-                                batch.update(doc(db, 'scadenze_pratiche', existing.id), cleanData);
-                            } else {
-                                batch.set(doc(collection(db, 'scadenze_pratiche')), cleanData);
-                            }
-                        });
-                        await batch.commit();
-                        alert("Database ripristinato con successo!");
-                    }
+                                if (existing) {
+                                    batch.update(doc(db, 'scadenze_pratiche', existing.id), cleanData);
+                                } else {
+                                    batch.set(doc(collection(db, 'scadenze_pratiche')), cleanData);
+                                }
+                            });
+                            await batch.commit();
+                            showToast("Database ripristinato con successo!", "success");
+                        }
+                    );
                 } catch (err) {
-                    alert("Errore nel caricamento del file: " + err.message);
+                    showToast("Errore nel caricamento del file: " + err.message, "error");
                 }
                 event.target.value = "";
             };
             reader.readAsText(file);
         };
 
-        // --- EXPORT & IMPORT EXCEL ---
         window.exportToExcel = () => {
             const headers = ["PI", "Scadenza", "Condominio_Societa", "Comune", "Indirizzo", "Attivita", "Amministratore", "Email_Amministratore"];
             const excelHeader = "sep=;\n";
@@ -352,6 +490,7 @@
             link.href = URL.createObjectURL(blob);
             link.download = `export_fire_${new Date().toISOString().split('T')[0]}.csv`;
             link.click();
+            showToast("File Excel/CSV esportato!", "success");
         };
 
         window.importFromExcel = async (event) => {
@@ -365,6 +504,7 @@
                 if (lines.length < 2) return;
                 const firstLine = lines[0];
                 const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
+                
                 const parseCSVLine = (text, delim) => {
                     const regex = new RegExp(`(?:${delim}|\\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^"${delim}\\n\\r]*))`, 'g');
                     const results = [];
@@ -375,40 +515,54 @@
                     }
                     return results;
                 };
+
                 const dataRows = lines.slice(1).map(line => parseCSVLine(line, delimiter));
-                if (confirm(`Rilevate ${dataRows.length} righe. Procedere con l'aggiornamento?`)) {
-                    const batch = writeBatch(db);
-                    for (const row of dataRows) {
-                        const piCode = row[0] ? row[0].trim() : null;
-                        if (!piCode) continue;
-                        const practiceData = {
-                            pi: piCode,
-                            deadline: row[1] || "",
-                            entityName: row[2] || "",
-                            municipality: row[3] || "",
-                            address: row[4] || "",
-                            activity: row[5] || "",
-                            administrator: row[6] || "",
-                            adminEmail: row[7] || "",
-                            mailSent60: false,
-                            updatedAt: serverTimestamp()
-                        };
-                        const existing = practices.find(p => p.pi === piCode);
-                        if (existing) batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
-                        else batch.set(doc(collection(db, 'scadenze_pratiche')), practiceData);
+
+                showConfirm(
+                    "Importa File Excel/CSV",
+                    `Rilevate ${dataRows.length} righe nel file. Procedere con l'importazione e l'aggiornamento?`,
+                    async () => {
+                        const batch = writeBatch(db);
+                        for (const row of dataRows) {
+                            const piCode = row[0] ? row[0].trim() : null;
+                            if (!piCode) continue;
+                            const practiceData = {
+                                pi: piCode,
+                                deadline: row[1] || "",
+                                entityName: row[2] || "",
+                                municipality: row[3] || "",
+                                address: row[4] || "",
+                                activity: row[5] || "",
+                                administrator: row[6] || "",
+                                adminEmail: row[7] || "",
+                                mailSent60: false,
+                                updatedAt: serverTimestamp()
+                            };
+                            const existing = practices.find(p => p.pi === piCode);
+                            if (existing) batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
+                            else batch.set(doc(collection(db, 'scadenze_pratiche')), practiceData);
+                        }
+                        await batch.commit();
+                        showToast("Importazione da Excel completata con successo!", "success");
+                        event.target.value = ""; 
                     }
-                    await batch.commit();
-                    alert("Importazione completata!");
-                    event.target.value = ""; 
-                }
+                );
             };
             reader.readAsText(file);
         };
 
-        window.openModal = () => { document.getElementById('practiceForm').reset(); document.getElementById('practiceId').value = ''; document.getElementById('modalTitle').innerText = 'Nuova Pratica'; document.getElementById('practiceModal').classList.remove('hidden'); };
+        window.openModal = () => { 
+            document.getElementById('practiceForm').reset(); 
+            document.getElementById('practiceId').value = ''; 
+            document.getElementById('modalTitle').innerText = 'Nuova Pratica'; 
+            document.getElementById('practiceModal').classList.remove('hidden'); 
+        };
+
         window.closeModal = () => document.getElementById('practiceModal').classList.add('hidden');
+
         window.edit = (id) => {
             const p = practices.find(x => x.id === id);
+            if (!p) return;
             document.getElementById('practiceId').value = id;
             document.getElementById('pi').value = p.pi || '';
             document.getElementById('deadline').value = p.deadline || '';
@@ -421,7 +575,18 @@
             document.getElementById('modalTitle').innerText = 'Modifica Pratica';
             document.getElementById('practiceModal').classList.remove('hidden');
         };
-        window.del = async (id) => { if(confirm('Eliminare?')) await deleteDoc(doc(db, 'scadenze_pratiche', id)); };
+
+        window.del = (id) => { 
+            showConfirm(
+                "Elimina Pratica",
+                "Sei sicuro di voler eliminare definitivamente questa pratica antincendio?",
+                async () => {
+                    await deleteDoc(doc(db, 'scadenze_pratiche', id));
+                    showToast("Pratica eliminata dal registro.", "warning");
+                }
+            );
+        };
+
         document.getElementById('practiceForm').onsubmit = async (e) => {
             e.preventDefault();
             const id = document.getElementById('practiceId').value;
@@ -437,10 +602,18 @@
                 mailSent60: false, 
                 updatedAt: serverTimestamp()
             };
-            if(id) await updateDoc(doc(db, 'scadenze_pratiche', id), data);
-            else await addDoc(collection(db, 'scadenze_pratiche'), data);
+
+            if (id) {
+                await updateDoc(doc(db, 'scadenze_pratiche', id), data);
+                showToast("Pratica aggiornata con successo!", "success");
+            } else {
+                await addDoc(collection(db, 'scadenze_pratiche'), data);
+                showToast("Nuova pratica inserita nel registro!", "success");
+            }
             closeModal();
         };
+
+        // Initialize application on load
         init();
     </script>
 </body>
