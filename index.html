@@ -78,6 +78,11 @@
                     <i data-lucide="refresh-cw" class="w-4 h-4 mr-1.5"></i> Aggiorna
                 </button>
 
+                <!-- RIPRISTINA / CARICA LE 81 PRATICHE PREDEFINITE -->
+                <button onclick="resetToInitial81Data()" title="Ricarica le 81 Pratiche CPI Predefinite" class="flex items-center px-3.5 py-2.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-100 transition border border-amber-200/60 active:scale-95">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4 mr-1.5"></i> Ripristina 81 Pratiche
+                </button>
+
                 <!-- SINCRONIZZA SHEETS -->
                 <button onclick="openWebhookModal()" title="Sincronizza con Google Sheets" class="flex items-center px-3.5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm active:scale-95">
                     <i data-lucide="rotate-cw" class="w-4 h-4 mr-1.5"></i> Sincronizza Sheets
@@ -602,6 +607,20 @@
             loadPractices();
             render();
             showToast('Vista e dati ricaricati con successo!', 'info');
+        }
+
+        // Ripristina l'elenco completo con tutte le 81 pratiche predefinite
+        function resetToInitial81Data() {
+            showConfirm(
+                'Ripristina 81 Pratiche CPI',
+                'Vuoi ricaricare il registro con tutte le 81 pratiche CPI predefinite? Eventuali modifiche locali verranno aggiornate.',
+                () => {
+                    practices = JSON.parse(JSON.stringify(initialSampleData));
+                    saveToLocalStorage();
+                    render();
+                    showToast('Ripristinate ed inserite con successo tutte le 81 pratiche CPI!', 'success');
+                }
+            );
         }
 
         function render() {
