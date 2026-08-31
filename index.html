@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         .card { border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -68,7 +69,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-600 mb-1">Email Amministratore</label>
-                        <input type="email" id="adminEmail" placeholder="mail@esempio.it" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        <input type="email" id="adminEmail" placeholder="mail@esempio.it" value="prevenzioneprince@gmail.com" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
                 </div>
                 <input type="hidden" id="mailSent60" value="false">
@@ -116,6 +117,13 @@
                 <i data-lucide="history" class="w-4 h-4 mr-1.5"></i> Ripristina JSON
                 <input type="file" id="importJsonFile" class="hidden" accept=".json" onchange="importFromJson(event)">
             </label>
+
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+
+            <!-- IMPOSTA EMAIL DEFAULT SU TUTTE -->
+            <button onclick="setDefaultEmailOnAll()" class="flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 text-[11px] font-bold rounded-lg hover:bg-blue-200 transition border border-blue-200">
+                <i data-lucide="mail-plus" class="w-4 h-4 mr-1.5"></i> Imposta Mail su Tutte
+            </button>
         </div>
     </header>
 
@@ -195,6 +203,24 @@
             appId: "1:224799236818:web:1fbd60f62f653f97f2030b"
         };
 
+        // --- CONFIGURAZIONE EMAILJS (per invio email automatico/manuale) ---
+        // 1. Crea un account gratuito su https://www.emailjs.com/ (piano free: 200 email/mese)
+        // 2. In "Email Services" collega la tua casella (es. Gmail) e copia il Service ID
+        // 3. In "Email Templates" crea un template con le variabili: to_email, to_name,
+        //    entity_name, pi_code, activity, deadline, address, municipality
+        //    e copia il Template ID
+        // 4. In "Account" > "General" copia la tua Public Key
+        const EMAILJS_PUBLIC_KEY = "ogNbigIv4GGvoiF1y";
+        const EMAILJS_SERVICE_ID = "service_6ei25xg";
+        const EMAILJS_TEMPLATE_ID = "template_78ncjup";
+
+        // Email usata come destinatario di default quando una pratica non ne ha una propria
+        const DEFAULT_ADMIN_EMAIL = "prevenzioneprince@gmail.com";
+
+        if (window.emailjs && !EMAILJS_PUBLIC_KEY.startsWith("INSERISCI")) {
+            emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+        }
+
         let db, practices = [], currentFilter = 'all';
 
         async function init() {
@@ -217,6 +243,7 @@
                 practices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 updateCounts();
                 render();
+                checkReminders();
             });
         }
 
@@ -236,6 +263,69 @@
             document.getElementById('count-imminent').innerText = counts.imminent;
             document.getElementById('count-valid').innerText = counts.valid;
         }
+
+        // --- PROMEMORIA EMAIL A 60 GIORNI DALLA SCADENZA ---
+        // Controlla tutte le pratiche: se sono entrate nella finestra 0-60 giorni
+        // e non è già stata inviata una mail (mailSent60), invia il promemoria.
+        async function checkReminders() {
+            const now = new Date().setHours(0,0,0,0);
+            for (const p of practices) {
+                if (!p.deadline) continue;
+                const diff = Math.ceil((new Date(p.deadline) - now) / 86400000);
+                if (diff >= 0 && diff <= 60 && !p.mailSent60) {
+                    await sendReminderEmail(p);
+                }
+            }
+        }
+
+        async function sendReminderEmail(p) {
+            if (!window.emailjs || EMAILJS_SERVICE_ID.startsWith("INSERISCI")) {
+                console.warn("EmailJS non configurato: impossibile inviare la mail per", p.entityName);
+                return false;
+            }
+            try {
+                await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+                    to_email: p.adminEmail || DEFAULT_ADMIN_EMAIL,
+                    to_name: p.administrator || "Amministratore",
+                    entity_name: p.entityName || "",
+                    pi_code: p.pi || "",
+                    activity: p.activity || "",
+                    deadline: p.deadline ? p.deadline.split('-').reverse().join('/') : "",
+                    address: p.address || "",
+                    municipality: p.municipality || ""
+                });
+                await updateDoc(doc(db, 'scadenze_pratiche', p.id), {
+                    mailSent60: true,
+                    mailSentAt: serverTimestamp()
+                });
+                console.log("Email di promemoria inviata per:", p.entityName);
+                return true;
+            } catch (err) {
+                console.error("Errore invio email per", p.entityName, err);
+                return false;
+            }
+        }
+
+        // Invio manuale da pulsante in tabella (funziona anche fuori dalla finestra 60gg)
+        window.sendManualReminder = async (id) => {
+            const p = practices.find(x => x.id === id);
+            if (!p) return;
+            const ok = await sendReminderEmail(p);
+            alert(ok ? "Email inviata a " + p.adminEmail : "Invio non riuscito. Controlla la configurazione EmailJS (vedi console).");
+        };
+
+        // Imposta DEFAULT_ADMIN_EMAIL su tutte le pratiche che non hanno un'email propria
+        window.setDefaultEmailOnAll = async () => {
+            const missing = practices.filter(p => !p.adminEmail || p.adminEmail.trim() === "");
+            if (missing.length === 0) { alert("Tutte le pratiche hanno già un'email amministratore impostata."); return; }
+            if (!confirm(`Verrà impostata l'email "${DEFAULT_ADMIN_EMAIL}" su ${missing.length} pratiche prive di email. Procedere?`)) return;
+            const batch = writeBatch(db);
+            missing.forEach(p => {
+                batch.update(doc(db, 'scadenze_pratiche', p.id), { adminEmail: DEFAULT_ADMIN_EMAIL, updatedAt: serverTimestamp() });
+            });
+            await batch.commit();
+            alert(`Email impostata su ${missing.length} pratiche.`);
+        };
 
         window.setFilter = (type) => {
             currentFilter = type;
@@ -287,6 +377,7 @@
                     <td class="p-4 text-xs font-bold text-blue-700 uppercase tracking-tighter">${p.activity || '-'}</td>
                     <td class="p-4 text-right">
                         <div class="flex justify-end gap-1">
+                            <button onclick="sendManualReminder('${p.id}')" class="text-emerald-600 p-2 hover:bg-emerald-100 rounded-lg transition" title="Invia promemoria via email"><i data-lucide="mail" class="w-4 h-4"></i></button>
                             <button onclick="edit('${p.id}')" class="text-blue-600 p-2 hover:bg-blue-100 rounded-lg transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
                             <button onclick="del('${p.id}')" class="text-red-600 p-2 hover:bg-red-100 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                         </div>
@@ -416,7 +507,7 @@
             document.getElementById('activity').value = p.activity || '';
             document.getElementById('address').value = p.address || '';
             document.getElementById('administrator').value = p.administrator || '';
-            document.getElementById('adminEmail').value = p.adminEmail || '';
+            document.getElementById('adminEmail').value = p.adminEmail || DEFAULT_ADMIN_EMAIL;
             document.getElementById('municipality').value = p.municipality || '';
             document.getElementById('modalTitle').innerText = 'Modifica Pratica';
             document.getElementById('practiceModal').classList.remove('hidden');
