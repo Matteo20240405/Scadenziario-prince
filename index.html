@@ -3,884 +3,445 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scadenziario PRINCE Fire - Gestore CPI</title>
-    
-    <!-- Tailwind CSS -->
+    <title>Scadenziario PRINCE Fire - Gestione Sheet</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- SheetJS (XLSX) per import/export Excel -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-    <!-- Google Fonts Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
-            color: #0f172a;
-        }
-        .card {
-            background-color: #ffffff;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04), 0 2px 4px -2px rgba(0,0,0,0.04);
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-        @keyframes toastIn {
-            from { transform: translateY(-100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .toast-animate {
-            animation: toastIn 0.3s ease-out forwards;
-        }
-        .imminent-row {
-            background-color: #fffbeb !important;
-        }
-        .expired-row {
-            background-color: #fef2f2 !important;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .card { border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .imminent { background-color: #fefce8 !important; border-left: 4px solid #facc15; }
+        .expired { background-color: #fef2f2 !important; border-left: 4px solid #ef4444; }
+        #errorMessage { display: none; }
+        .filter-btn.active { border-color: #2563eb; background-color: #eff6ff; color: #1e40af; ring: 2px; --tw-ring-color: #3b82f6; }
     </style>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-800 p-3 md:p-6 pb-20">
+<body class="p-4 md:p-8 text-gray-800">
 
-    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
-
-    <div class="max-w-7xl mx-auto space-y-6">
-
-        <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 card border border-slate-100">
-            <div>
-                <h1 class="text-2xl md:text-3xl font-black text-slate-900 flex items-center tracking-tight">
-                    <span class="bg-indigo-600 p-2.5 rounded-2xl mr-3 shadow-lg shadow-indigo-200 flex items-center justify-center">
-                        <i data-lucide="shield-check" class="text-white w-6 h-6 md:w-7 md:h-7"></i>
-                    </span>
-                    Scadenziario PRINCE <span class="text-indigo-600 ml-2 italic">Fire</span>
-                </h1>
-                <p class="text-slate-500 text-xs mt-1 font-medium">Registro Cloud & Sincronizzazione Scadenze Antincendio (CPI) - Gestione 81 Pratiche</p>
-            </div>
-            
-            <div class="flex flex-wrap items-center gap-2">
-                <button onclick="refreshData()" title="Ricarica e Aggiorna Registro" class="flex items-center px-3.5 py-2.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition border border-indigo-200/60 active:scale-95">
-                    <i data-lucide="refresh-cw" class="w-4 h-4 mr-1.5"></i> Aggiorna
-                </button>
-
-                <button onclick="resetToInitial81Data()" title="Ricarica le 81 Pratiche CPI Predefinite" class="flex items-center px-3.5 py-2.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-100 transition border border-amber-200/60 active:scale-95">
-                    <i data-lucide="rotate-ccw" class="w-4 h-4 mr-1.5"></i> Ripristina 81 Pratiche
-                </button>
-
-                <button onclick="openWebhookModal()" title="Sincronizza con Google Sheets" class="flex items-center px-3.5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm active:scale-95">
-                    <i data-lucide="rotate-cw" class="w-4 h-4 mr-1.5"></i> Sincronizza Sheets
-                </button>
-
-                <div class="hidden sm:block w-px h-6 bg-slate-200 mx-1"></div>
-
-                <button onclick="exportToExcel()" class="flex items-center px-3.5 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm active:scale-95">
-                    <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Excel
-                </button>
-                
-                <label class="flex items-center px-3.5 py-2.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl hover:bg-emerald-100 cursor-pointer transition border border-emerald-200/60 active:scale-95">
-                    <i data-lucide="file-up" class="w-4 h-4 mr-1.5"></i> Importa Excel
-                    <input type="file" id="importExcelFile" class="hidden" accept=".csv, .xlsx, .xls" onchange="importFromExcel(event)">
-                </label>
-
-                <div class="hidden sm:block w-px h-6 bg-slate-200 mx-1"></div>
-
-                <button onclick="exportData()" title="Esporta Backup JSON" class="flex items-center px-3 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition active:scale-95">
-                    <i data-lucide="database" class="w-4 h-4 mr-1.5"></i> Backup JSON
-                </button>
-
-                <label title="Ripristina da file JSON" class="flex items-center px-3 py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 cursor-pointer transition border border-slate-200 active:scale-95">
-                    <i data-lucide="history" class="w-4 h-4 mr-1.5"></i> Ripristina
-                    <input type="file" id="importJsonFile" class="hidden" accept=".json" onchange="importFromJson(event)">
-                </label>
-            </div>
-        </header>
-
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div onclick="setFilter('all')" class="card p-5 cursor-pointer border-2 hover:border-indigo-500 transition group">
-                <div class="flex items-center justify-between text-slate-500">
-                    <span class="text-xs font-bold uppercase tracking-wider">Totale Pratiche</span>
-                    <i data-lucide="folder" class="w-5 h-5 text-indigo-500 group-hover:scale-110 transition"></i>
-                </div>
-                <div id="statTotal" class="text-3xl font-black text-slate-900 mt-2">0</div>
-                <p class="text-[11px] text-slate-400 mt-1">Pratiche nel registro</p>
-            </div>
-
-            <div onclick="setFilter('expired')" class="card p-5 cursor-pointer border-2 hover:border-rose-500 transition group">
-                <div class="flex items-center justify-between text-slate-500">
-                    <span class="text-xs font-bold uppercase tracking-wider text-rose-600">Scadute</span>
-                    <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500 group-hover:scale-110 transition"></i>
-                </div>
-                <div id="statExpired" class="text-3xl font-black text-rose-600 mt-2">0</div>
-                <p class="text-[11px] text-rose-400 mt-1">Azione immediata richiesta</p>
-            </div>
-
-            <div onclick="setFilter('imminent')" class="card p-5 cursor-pointer border-2 hover:border-amber-500 transition group">
-                <div class="flex items-center justify-between text-slate-500">
-                    <span class="text-xs font-bold uppercase tracking-wider text-amber-600">In Scadenza</span>
-                    <i data-lucide="clock" class="w-5 h-5 text-amber-500 group-hover:scale-110 transition"></i>
-                </div>
-                <div id="statImminent" class="text-3xl font-black text-amber-600 mt-2">0</div>
-                <p class="text-[11px] text-amber-500 mt-1">Entro 60 giorni</p>
-            </div>
-
-            <div onclick="setFilter('valid')" class="card p-5 cursor-pointer border-2 hover:border-emerald-500 transition group">
-                <div class="flex items-center justify-between text-slate-500">
-                    <span class="text-xs font-bold uppercase tracking-wider text-emerald-600">Regolari</span>
-                    <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 group-hover:scale-110 transition"></i>
-                </div>
-                <div id="statValid" class="text-3xl font-black text-emerald-600 mt-2">0</div>
-                <p class="text-[11px] text-emerald-500 mt-1">Oltre 60 giorni</p>
-            </div>
-        </div>
-
-        <div class="card p-4 flex flex-col md:flex-row gap-3 items-center justify-between border border-slate-100">
-            <div class="relative w-full md:w-96">
-                <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                <input type="text" id="searchInput" oninput="render()" placeholder="Cerca per condominio, PI, comune, indirizzo..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-                <div class="inline-flex p-1 bg-slate-100 rounded-xl text-xs font-semibold">
-                    <button id="btnFilterAll" onclick="setFilter('all')" class="px-3 py-1.5 rounded-lg bg-white shadow-sm text-slate-800">Tutte</button>
-                    <button id="btnFilterExpired" onclick="setFilter('expired')" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800">Scadute</button>
-                    <button id="btnFilterImminent" onclick="setFilter('imminent')" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800">In Scadenza</button>
-                    <button id="btnFilterValid" onclick="setFilter('valid')" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800">Regolari</button>
-                </div>
-
-                <button onclick="openModal()" class="flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-200 transition active:scale-95 ml-auto md:ml-0">
-                    <i data-lucide="plus" class="w-4 h-4 mr-1.5"></i> Nuova Pratica
-                </button>
-            </div>
-        </div>
-
-        <div class="card overflow-hidden border border-slate-100">
-            <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-800 text-slate-200 uppercase text-[10px] font-bold tracking-wider">
-                        <tr>
-                            <th class="p-4 cursor-pointer hover:bg-slate-700" onclick="sortBy('entityName')">
-                                <div class="flex items-center gap-1">Condominio / Ente <i data-lucide="arrow-up-down" class="w-3 h-3"></i></div>
-                            </th>
-                            <th class="p-4 cursor-pointer hover:bg-slate-700" onclick="sortBy('pi')">
-                                <div class="flex items-center gap-1">Cod. Pratica (PI) <i data-lucide="arrow-up-down" class="w-3 h-3"></i></div>
-                            </th>
-                            <th class="p-4 cursor-pointer hover:bg-slate-700" onclick="sortBy('municipality')">
-                                <div class="flex items-center gap-1">Comune & Indirizzo <i data-lucide="arrow-up-down" class="w-3 h-3"></i></div>
-                            </th>
-                            <th class="p-4">Attività CPI</th>
-                            <th class="p-4">Amministratore</th>
-                            <th class="p-4 text-center cursor-pointer hover:bg-slate-700" onclick="sortBy('deadline')">
-                                <div class="flex items-center justify-center gap-1">Scadenza <i data-lucide="arrow-up-down" class="w-3 h-3"></i></div>
-                            </th>
-                            <th class="p-4 text-center">Stato</th>
-                            <th class="p-4 text-right">Azioni</th>
-                        </tr>
-                    </thead>
-                    <tbody id="practiceTableBody" class="divide-y divide-slate-100 text-xs">
-                        <!-- Content dynamically loaded -->
-                    </tbody>
-                </table>
-            </div>
-
-            <div id="emptyState" class="p-12 text-center text-slate-400 hidden">
-                <i data-lucide="inbox" class="w-12 h-12 mx-auto text-slate-300 mb-2"></i>
-                <p class="text-sm font-semibold text-slate-600">Nessuna pratica trovata</p>
-                <p class="text-xs mt-1">Prova a cambiare i filtri di ricerca o ad aggiungere una nuova pratica.</p>
-            </div>
-        </div>
+    <!-- Messaggio Errore -->
+    <div id="errorMessage" class="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 card">
+        <p class="font-bold text-lg">Errore di Configurazione</p>
+        <p id="errorDetails" class="text-sm"></p>
     </div>
 
-    <div id="practiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white w-full max-w-2xl p-6 rounded-2xl shadow-2xl space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div class="flex items-center gap-2 text-indigo-600">
-                    <i data-lucide="file-text" class="w-5 h-5"></i>
-                    <h3 id="modalTitle" class="text-base font-bold text-slate-900">Nuova Pratica</h3>
-                </div>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100">
-                    <i data-lucide="x" class="w-4 h-4"></i>
-                </button>
+    <!-- MODALE GESTIONE PRATICA -->
+    <div id="practiceModal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white w-full max-w-lg p-6 card max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="modalTitle" class="text-2xl font-bold text-gray-800">Gestione Pratica</h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
             </div>
-
-            <form id="practiceForm" onsubmit="savePractice(event)" class="space-y-4">
+            <form id="practiceForm" class="space-y-4">
                 <input type="hidden" id="practiceId">
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Codice Pratica (PI) *</label>
-                        <input type="text" id="pi" required placeholder="Es. PI 12345" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Codice PI</label>
+                        <input type="text" id="pi" placeholder="Es. 12345" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
-
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Data Scadenza *</label>
-                        <input type="date" id="deadline" required class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nome Condominio / Ente *</label>
-                        <input type="text" id="entityName" required placeholder="Es. Condominio San Marco" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
-                    </div>
-
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Comune</label>
-                        <input type="text" id="municipality" placeholder="Es. Milano" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
-                    </div>
-
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Indirizzo</label>
-                        <input type="text" id="address" placeholder="Es. Via Roma 15" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
-                    </div>
-
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Attività / Categoria</label>
-                        <input type="text" id="activity" placeholder="Es. 73.1.A - Autorimessa" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
-                    </div>
-
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Amministratore</label>
-                        <input type="text" id="administrator" placeholder="Es. Studio Rossi" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Email Amministratore</label>
-                        <input type="email" id="adminEmail" placeholder="Es. studio@rossiamministrazioni.it" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Scadenza</label>
+                        <input type="date" id="deadline" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
                     </div>
                 </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Condominio / Società</label>
+                    <input type="text" id="entityName" placeholder="Nome del condominio" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Attività</label>
+                    <input type="text" id="activity" placeholder="Es. Autorimessa, Centrale Termica, ecc." class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Indirizzo</label>
+                        <input type="text" id="address" placeholder="Via/Piazza e civico" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Comune</label>
+                        <input type="text" id="municipality" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Amministratore</label>
+                        <input type="text" id="administrator" placeholder="Nome" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-600 mb-1">Email Amministratore</label>
+                        <input type="email" id="adminEmail" placeholder="mail@esempio.it" class="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+                <input type="hidden" id="mailSent60" value="false">
 
-                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100 mt-6">
-                    <button type="button" onclick="closeModal()" class="px-5 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition">Annulla</button>
-                    <button type="submit" id="submitBtn" class="px-6 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition active:scale-95">
-                        Salva Pratica
-                    </button>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeModal()" class="px-5 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition">Annulla</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Salva Pratica</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="webhookModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4 border border-slate-100">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div class="flex items-center gap-2 text-indigo-600">
-                    <i data-lucide="link" class="w-5 h-5"></i>
-                    <h3 class="text-base font-bold text-slate-900">Sincronizzazione Google Sheets</h3>
-                </div>
-                <button onclick="closeWebhookModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100">
-                    <i data-lucide="x" class="w-4 h-4"></i>
-                </button>
+    <!-- HEADER -->
+    <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-black text-gray-900 flex items-center">
+                <span class="bg-blue-600 p-2 rounded-lg mr-3 shadow-lg shadow-blue-200">
+                    <i data-lucide="shield-check" class="text-white w-8 h-8"></i>
+                </span>
+                Scadenziario PRINCE <span class="text-blue-600 ml-2 italic">Fire</span>
+            </h1>
+            <p class="text-gray-500 mt-1 font-medium italic">Gestione Integrata Sheet & Cloud</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- EXPORT EXCEL -->
+            <button onclick="exportToExcel()" class="flex items-center px-3 py-1.5 bg-green-600 text-white text-[11px] font-bold rounded-lg hover:bg-green-700 transition shadow-sm">
+                <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Esporta Excel
+            </button>
+            
+            <!-- IMPORT EXCEL -->
+            <label class="flex items-center px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-lg hover:bg-emerald-200 cursor-pointer transition border border-emerald-200">
+                <i data-lucide="file-up" class="w-4 h-4 mr-1.5"></i> Importa Excel
+                <input type="file" id="importExcelFile" class="hidden" accept=".csv" onchange="importFromExcel(event)">
+            </label>
+
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+
+            <!-- BACKUP JSON -->
+            <button onclick="exportData()" class="flex items-center px-3 py-1.5 bg-gray-800 text-white text-[11px] font-bold rounded-lg hover:bg-black transition">
+                <i data-lucide="database" class="w-4 h-4 mr-1.5"></i> Backup JSON
+            </button>
+
+            <!-- RIPRISTINA JSON -->
+            <label class="flex items-center px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-lg hover:bg-gray-200 cursor-pointer transition border border-gray-300">
+                <i data-lucide="history" class="w-4 h-4 mr-1.5"></i> Ripristina JSON
+                <input type="file" id="importJsonFile" class="hidden" accept=".json" onchange="importFromJson(event)">
+            </label>
+        </div>
+    </header>
+
+    <!-- DASHBOARD FILTRI -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <button onclick="setFilter('all')" id="btn-all" class="filter-btn active bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
+            <div class="text-left">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Totali</p>
+                <p id="count-all" class="text-2xl font-black text-gray-800">0</p>
             </div>
-            <div class="space-y-3">
-                <p class="text-xs text-slate-500 leading-relaxed">
-                    Inserisci l'URL dell'Applicazione Web rilasciata da Google Apps Script per inviare i dati al foglio Google ("Sheet 1").
-                </p>
-                <input type="url" id="webhookUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs bg-slate-50 font-mono">
+            <i data-lucide="list" class="text-gray-300"></i>
+        </button>
+        <button onclick="setFilter('expired')" id="btn-expired" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
+            <div class="text-left">
+                <p class="text-xs font-bold text-red-400 uppercase tracking-wider">Scadute</p>
+                <p id="count-expired" class="text-2xl font-black text-red-600">0</p>
             </div>
-            <div class="flex justify-end gap-2 pt-2">
-                <button onclick="closeWebhookModal()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl">Annulla</button>
-                <button onclick="syncToGoogleSheets()" class="px-4 py-2 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl shadow-md transition flex items-center gap-1.5">
-                    <i data-lucide="send" class="w-3.5 h-3.5"></i> Invia & Sincronizza
-                </button>
+            <i data-lucide="alert-circle" class="text-red-200"></i>
+        </button>
+        <button onclick="setFilter('imminent')" id="btn-imminent" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
+            <div class="text-left">
+                <p class="text-xs font-bold text-yellow-500 uppercase tracking-wider">In Scadenza</p>
+                <p id="count-imminent" class="text-2xl font-black text-yellow-600">0</p>
             </div>
+            <i data-lucide="clock" class="text-yellow-200"></i>
+        </button>
+        <button onclick="setFilter('valid')" id="btn-valid" class="filter-btn bg-white p-4 card border-2 border-transparent transition-all flex items-center justify-between">
+            <div class="text-left">
+                <p class="text-xs font-bold text-green-400 uppercase tracking-wider">Regolari</p>
+                <p id="count-valid" class="text-2xl font-black text-green-600">0</p>
+            </div>
+            <i data-lucide="check-circle" class="text-green-200"></i>
+        </button>
+    </div>
+
+    <!-- TABELLA -->
+    <div class="bg-white card overflow-hidden border border-gray-100">
+        <div class="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50/30">
+            <div class="relative w-full md:w-96">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" id="searchBar" oninput="render()" placeholder="Cerca..." class="w-full bg-white border border-gray-200 py-2.5 pl-10 pr-4 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            </div>
+            <button onclick="openModal()" class="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition flex items-center justify-center shadow-lg shadow-blue-200">
+                <i data-lucide="plus" class="w-5 h-5 mr-2"></i> Nuova Pratica
+            </button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-widest border-b border-gray-100">
+                    <tr>
+                        <th class="p-4">PI</th>
+                        <th class="p-4 text-center">Scadenza</th>
+                        <th class="p-4">Condominio/Ditta</th>
+                        <th class="p-4">Comune</th>
+                        <th class="p-4">Indirizzo</th>
+                        <th class="p-4">Attività</th>
+                        <th class="p-4 text-right">Azioni</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-100 italic"></tbody>
+            </table>
         </div>
     </div>
 
-    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl space-y-4 text-center border border-slate-100">
-            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-                <i data-lucide="alert-circle" class="w-6 h-6"></i>
-            </div>
-            <div>
-                <h3 id="confirmTitle" class="text-base font-bold text-slate-900">Sei sicuro?</h3>
-                <p id="confirmMessage" class="text-xs text-slate-500 mt-1">Questa azione non potrà essere annullata.</p>
-            </div>
-            <div class="flex justify-center gap-2 pt-2">
-                <button id="confirmCancelBtn" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Annulla</button>
-                <button id="confirmOkBtn" class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition">Conferma</button>
-            </div>
-        </div>
-    </div>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    <script>
-        let practices = [];
-        let currentFilter = 'all';
-        let currentSortField = 'deadline';
-        let currentSortAsc = true;
-        let pendingConfirmCallback = null;
-
-        const initialSampleData = [
-            { id: '1', pi: 'PI-8821', deadline: '2026-09-15', entityName: 'Condominio Stella Polare', activity: '73.1.A - Autorimessa', address: 'Via Garibaldi 42', municipality: 'Milano', administrator: 'Studio Immobiliare Alpha', adminEmail: 'info@alphagroup.it' },
-            { id: '2', pi: 'PI-3342', deadline: '2026-06-10', entityName: 'Residenza Bellavista', activity: '77.2.B - Edificio Civile Abitazione', address: 'Corso Vittorio Emanuele II 110', municipality: 'Torino', administrator: 'Geom. Roberto Bianchi', adminEmail: 'r.bianchi@studio.it' },
-            { id: '3', pi: 'PI-9901', deadline: '2026-12-01', entityName: 'Condominio Sole & Mare', activity: '74.1.A - Centrale Termica', address: 'Via Carducci 5', municipality: 'Monza', administrator: 'Studio Verdi & Partners', adminEmail: 'amministrazione@verdi.it' },
-            { id: '4', pi: 'PI-5510', deadline: '2026-07-20', entityName: 'Complesso Industriale Europarc', activity: '70.2.C - Magazzino Merci', address: 'Via delle Industrie 88', municipality: 'Bologna', administrator: 'Gestione Immobili SpA', adminEmail: 'gestione@europarc.it' },
-            { id: '5', pi: 'PI-7743', deadline: '2026-10-10', entityName: 'Torre Giardino Verde', activity: '77.1.A - Edificio Alto', address: 'Viale Europa 12', municipality: 'Firenze', administrator: 'Studio Firenze Casa', adminEmail: 'info@firenzecasa.it' },
-            { id: '6', pi: 'PI-1204', deadline: '2027-05-20', entityName: 'Condominio San Marco', activity: '73.1.A - Autorimessa', address: 'Via San Marco 3', municipality: 'Bergamo', administrator: 'Dott. Mario Rossi', adminEmail: 'm.rossi@gestioni.it' },
-            { id: '7', pi: 'PI-1007', deadline: '2026-04-12', entityName: 'Condominio Le Betulle', activity: '74.1.A - Centrale Termica', address: 'Via Manzoni 14', municipality: 'Milano', administrator: 'Studio Brambilla', adminEmail: 'brambilla@amministrazioni.it' },
-            { id: '8', pi: 'PI-1008', deadline: '2026-09-28', entityName: 'Residenza Il Parco', activity: '77.2.B - Edificio Civile', address: 'Via Verdi 89', municipality: 'Brescia', administrator: 'Geom. Franco Riva', adminEmail: 'riva.amministrazioni@tin.it' },
-            { id: '9', pi: 'PI-1009', deadline: '2025-11-15', entityName: 'Condominio Primavera', activity: '73.1.A - Autorimessa', address: 'Corso Sempione 45', municipality: 'Milano', administrator: 'Studio Immobiliare Alpha', adminEmail: 'info@alphagroup.it' },
-            { id: '10', pi: 'PI-1010', deadline: '2026-10-05', entityName: 'Palazzo Centauro', activity: '75.1.A - Gruppo Elettrogeno', address: 'Via Roma 102', municipality: 'Monza', administrator: 'Studio Colombo', adminEmail: 'colombo@gestioni.it' },
-            { id: '11', pi: 'PI-1011', deadline: '2026-09-02', entityName: 'Condominio Aurora', activity: '74.1.A - Centrale Termica', address: 'Via Dante 18', municipality: 'Como', administrator: 'Studio Galli', adminEmail: 'info@studiogalli.it' },
-            { id: '12', pi: 'PI-1012', deadline: '2027-01-15', entityName: 'Residenza Santa Maria', activity: '77.2.B - Edificio Civile', address: 'Via Cavour 7', municipality: 'Varese', administrator: 'Geom. Andrea Fontana', adminEmail: 'fontana@studio.it' },
-            { id: '13', pi: 'PI-1013', deadline: '2026-03-30', entityName: 'Centro Commerciale La Spiga', activity: '69.1.A - Locale Commerciale', address: 'Via Cimarosa 1', municipality: 'Novara', administrator: 'Immobiliare Sempione', adminEmail: 'admin@sempioneimmobili.it' },
-            { id: '14', pi: 'PI-1014', deadline: '2026-09-22', entityName: 'Condominio Mimosa', activity: '73.1.A - Autorimessa', address: 'Via Boccaccio 33', municipality: 'Milano', administrator: 'Studio Rossi & C.', adminEmail: 'rossi@condomini.it' },
-            { id: '15', pi: 'PI-1015', deadline: '2026-11-18', entityName: 'Residenza I Pini', activity: '74.1.A - Centrale Termica', address: 'Via Pascoli 12', municipality: 'Pavia', administrator: 'Geom. Matteo Valli', adminEmail: 'valli@studiovalli.it' },
-            { id: '16', pi: 'PI-1016', deadline: '2025-12-10', entityName: 'Condominio Orchidea', activity: '77.2.B - Edificio Civile', address: 'Via Foscolo 8', municipality: 'Lodi', administrator: 'Studio Gestioni Lodi', adminEmail: 'info@gestionilodi.it' },
-            { id: '17', pi: 'PI-1017', deadline: '2026-10-18', entityName: 'Palazzo Smeraldo', activity: '73.1.A - Autorimessa', address: 'Via Leopardi 21', municipality: 'Milano', administrator: 'Studio Immobiliare Alpha', adminEmail: 'info@alphagroup.it' },
-            { id: '18', pi: 'PI-1018', deadline: '2027-03-14', entityName: 'Condominio Margherita', activity: '74.1.A - Centrale Termica', address: 'Via Monti 15', municipality: 'Cremona', administrator: 'Studio Cremona Casa', adminEmail: 'cremonacasa@tin.it' },
-            { id: '19', pi: 'PI-1019', deadline: '2026-08-30', entityName: 'Residenza Il Mulino', activity: '77.1.A - Edificio Alto', address: 'Via Olona 4', municipality: 'Legnano', administrator: 'Geom. Paolo Longhi', adminEmail: 'longhi@studiolonghi.it' },
-            { id: '20', pi: 'PI-1020', deadline: '2026-09-12', entityName: 'Condominio Girasole', activity: '73.1.A - Autorimessa', address: 'Via Solferino 50', municipality: 'Seregno', administrator: 'Studio Brianza Gestioni', adminEmail: 'brianzagestioni@libero.it' },
-            { id: '21', pi: 'PI-1021', deadline: '2027-08-10', entityName: 'Palazzo Diamante', activity: '77.2.B - Edificio Civile', address: 'Corso Buenos Aires 80', municipality: 'Milano', administrator: 'Studio Milano Central', adminEmail: 'milano@central.it' },
-            { id: '22', pi: 'PI-1022', deadline: '2026-01-20', entityName: 'Condominio Azalea', activity: '74.1.A - Centrale Termica', address: 'Via De Amicis 9', municipality: 'Rho', administrator: 'Studio Rho Immobili', adminEmail: 'rhoimmobili@gmail.com' },
-            { id: '23', pi: 'PI-1023', deadline: '2026-09-25', entityName: 'Residenza Le Rose', activity: '73.1.A - Autorimessa', address: 'Via Magenta 11', municipality: 'Gallarate', administrator: 'Geom. Stefano Riva', adminEmail: 's.riva@studioriva.it' },
-            { id: '24', pi: 'PI-1024', deadline: '2026-10-30', entityName: 'Condominio Magnolia', activity: '77.2.B - Edificio Civile', address: 'Via Torino 64', municipality: 'Monza', administrator: 'Studio Verdi & Partners', adminEmail: 'amministrazione@verdi.it' },
-            { id: '25', pi: 'PI-1025', deadline: '2027-11-05', entityName: 'Palazzo Ruby', activity: '75.1.A - Gruppo Elettrogeno', address: 'Via Moscova 28', municipality: 'Milano', administrator: 'Studio Immobiliare Alpha', adminEmail: 'info@alphagroup.it' },
-            { id: '26', pi: 'PI-1026', deadline: '2026-02-14', entityName: 'Condominio Camelia', activity: '74.1.A - Centrale Termica', address: 'Via Roma 5', municipality: 'Desio', administrator: 'Studio Desio Gestioni', adminEmail: 'desio@gestioni.it' },
-            { id: '27', pi: 'PI-1027', deadline: '2026-10-02', entityName: 'Residenza Gli Olmi', activity: '73.1.A - Autorimessa', address: 'Via Padova 110', municipality: 'Milano', administrator: 'Studio Ambrosiano', adminEmail: 'info@studioambrosiano.it' },
-            { id: '28', pi: 'PI-1028', deadline: '2026-09-08', entityName: 'Condominio Ortensia', activity: '77.2.B - Edificio Civile', address: 'Via Varese 3', municipality: 'Busto Arsizio', administrator: 'Geom. Laura Conti', adminEmail: 'conti@studioconti.it' },
-            { id: '29', pi: 'PI-1029', deadline: '2027-06-18', entityName: 'Palazzo Zaffiro', activity: '74.1.A - Centrale Termica', address: 'Via Gonzaga 12', municipality: 'Mantova', administrator: 'Studio Mantova Casa', adminEmail: 'info@mantovacasa.it' },
-            { id: '30', pi: 'PI-1030', deadline: '2026-05-10', entityName: 'Condominio Primula', activity: '73.1.A - Autorimessa', address: 'Via Milano 22', municipality: 'Cinisello Balsamo', administrator: 'Studio Norte', adminEmail: 'norte@gestioni.it' },
-            { id: '31', pi: 'PI-1031', deadline: '2026-09-30', entityName: 'Residenza I Pioppi', activity: '77.2.B - Edificio Civile', address: 'Via Gramsci 17', municipality: 'Sesto San Giovanni', administrator: 'Studio Sesto Amministrazioni', adminEmail: 'sesto@amministrazioni.it' },
-            { id: '32', pi: 'PI-1032', deadline: '2026-10-15', entityName: 'Condominio Ciclamino', activity: '74.1.A - Centrale Termica', address: 'Via Parini 4', municipality: 'Lecco', administrator: 'Geom. Marco Lari', adminEmail: 'lari@studiolari.it' },
-            { id: '33', pi: 'PI-1033', deadline: '2028-02-01', entityName: 'Centro Direzionale Torri', activity: '77.1.A - Edificio Alto', address: 'Viale Fulvio Testi 200', municipality: 'Milano', administrator: 'Milano Property Mgmt', adminEmail: 'pm@milanoproperty.it' },
-            { id: '34', pi: 'PI-1034', deadline: '2026-08-15', entityName: 'Condominio Viola', activity: '73.1.A - Autorimessa', address: 'Via Ripamonti 88', municipality: 'Milano', administrator: 'Studio Rossi & C.', adminEmail: 'rossi@condomini.it' },
-            { id: '35', pi: 'PI-1035', deadline: '2026-10-01', entityName: 'Residenza Il Castagno', activity: '74.1.A - Centrale Termica', address: 'Via Como 45', municipality: 'Cantù', administrator: 'Studio Cantù Immobili', adminEmail: 'cantu@immobili.it' },
-            { id: '36', pi: 'PI-1036', deadline: '2025-10-20', entityName: 'Condominio Fiordaliso', activity: '77.2.B - Edificio Civile', address: 'Via Lamarmora 12', municipality: 'Biella', administrator: 'Studio Biella Casa', adminEmail: 'biellacasa@tin.it' },
-            { id: '37', pi: 'PI-1037', deadline: '2026-09-14', entityName: 'Palazzo Topazio', activity: '73.1.A - Autorimessa', address: 'Via Carducci 30', municipality: 'Bergamo', administrator: 'Dott. Mario Rossi', adminEmail: 'm.rossi@gestioni.it' },
-            { id: '38', pi: 'PI-1038', deadline: '2027-04-22', entityName: 'Condominio Narciso', activity: '74.1.A - Centrale Termica', address: 'Via Roma 18', municipality: 'Treviglio', administrator: 'Geom. Luca Bellini', adminEmail: 'bellini@studio.it' },
-            { id: '39', pi: 'PI-1039', deadline: '2026-09-19', entityName: 'Residenza I Frassini', activity: '77.2.B - Edificio Civile', address: 'Via Garibaldi 100', municipality: 'Piacenza', administrator: 'Studio Piacenza Gestioni', adminEmail: 'piacenza@gestioni.it' },
-            { id: '40', pi: 'PI-1040', deadline: '2026-10-22', entityName: 'Condominio Tulipano', activity: '73.1.A - Autorimessa', address: 'Via Torino 15', municipality: 'Novara', administrator: 'Immobiliare Sempione', adminEmail: 'admin@sempioneimmobili.it' },
-            { id: '41', pi: 'PI-1041', deadline: '2027-09-11', entityName: 'Palazzo Quarzo', activity: '75.1.A - Gruppo Elettrogeno', address: 'Via Savona 55', municipality: 'Milano', administrator: 'Studio Immobiliare Alpha', adminEmail: 'info@alphagroup.it' },
-            { id: '42', pi: 'PI-1042', deadline: '2026-04-05', entityName: 'Condominio Giglio', activity: '74.1.A - Centrale Termica', address: 'Via Europa 9', municipality: 'Saronno', administrator: 'Studio Saronno Casa', adminEmail: 'saronno@casa.it' },
-            { id: '43', pi: 'PI-1043', deadline: '2026-09-10', entityName: 'Residenza Gli Aceri', activity: '73.1.A - Autorimessa', address: 'Via Varese 80', municipality: 'Gallarate', administrator: 'Geom. Stefano Riva', adminEmail: 's.riva@studioriva.it' },
-            { id: '44', pi: 'PI-1044', deadline: '2026-10-12', entityName: 'Condominio Geranio', activity: '77.2.B - Edificio Civile', address: 'Via Cavour 44', municipality: 'Asti', administrator: 'Studio Asti Immobili', adminEmail: 'asti@immobili.it' },
-            { id: '45', pi: 'PI-1045', deadline: '2027-12-01', entityName: 'Palazzo Perla', activity: '74.1.A - Centrale Termica', address: 'Via Dante 99', municipality: 'Alessandria', administrator: 'Studio Alessandria Gestioni', adminEmail: 'alessandria@gestioni.it' },
-            { id: '46', pi: 'PI-1046', deadline: '2026-02-28', entityName: 'Condominio Bucaneve', activity: '73.1.A - Autorimessa', address: 'Via San Rocco 2', municipality: 'Sondrio', administrator: 'Studio Valtellina Casa', adminEmail: 'info@valtellinacasa.it' },
-            { id: '47', pi: 'PI-1047', deadline: '2026-09-24', entityName: 'Residenza I Larix', activity: '77.2.B - Edificio Civile', address: 'Via Roma 250', municipality: 'Varese', administrator: 'Geom. Andrea Fontana', adminEmail: 'fontana@studio.it' },
-            { id: '48', pi: 'PI-1048', deadline: '2026-10-08', entityName: 'Condominio Gladiolo', activity: '74.1.A - Centrale Termica', address: 'Via Milano 88', municipality: 'Vigevano', administrator: 'Studio Vigevano Immobili', adminEmail: 'vigevano@immobili.it' },
-            { id: '49', pi: 'PI-1049', deadline: '2028-05-15', entityName: 'Torre San Cristoforo', activity: '77.1.A - Edificio Alto', address: 'Via Lodovico il Moro 1', municipality: 'Milano', administrator: 'Milano Property Mgmt', adminEmail: 'pm@milanoproperty.it' },
-            { id: '50', pi: 'PI-1050', deadline: '2026-07-11', entityName: 'Condominio Biancospino', activity: '73.1.A - Autorimessa', address: 'Via Garibaldi 12', municipality: 'Corsico', administrator: 'Studio Ovest Gestioni', adminEmail: 'ovest@gestioni.it' },
-            { id: '51', pi: 'PI-1051', deadline: '2026-10-19', entityName: 'Residenza Il Faggio', activity: '74.1.A - Centrale Termica', address: 'Via Brianza 3', municipality: 'Carate Brianza', administrator: 'Studio Brianza Gestioni', adminEmail: 'brianzagestioni@libero.it' },
-            { id: '52', pi: 'PI-1052', deadline: '2025-09-30', entityName: 'Condominio Ibisco', activity: '77.2.B - Edificio Civile', address: 'Via Foscolo 19', municipality: 'Lodi', administrator: 'Studio Gestioni Lodi', adminEmail: 'info@gestionilodi.it' },
-            { id: '53', pi: 'PI-1053', deadline: '2026-09-17', entityName: 'Palazzo Ambra', activity: '73.1.A - Autorimessa', address: 'Via Solari 14', municipality: 'Milano', administrator: 'Studio Immobiliare Alpha', adminEmail: 'info@alphagroup.it' },
-            { id: '54', pi: 'PI-1054', deadline: '2027-02-20', entityName: 'Condominio Lavanda', activity: '74.1.A - Centrale Termica', address: 'Via Pascoli 55', municipality: 'Parma', administrator: 'Studio Parma Immobili', adminEmail: 'parma@immobili.it' },
-            { id: '55', pi: 'PI-1055', deadline: '2026-09-21', entityName: 'Residenza Le Betulle 2', activity: '77.2.B - Edificio Civile', address: 'Via Manzoni 16', municipality: 'Milano', administrator: 'Studio Brambilla', adminEmail: 'brambilla@amministrazioni.it' },
-            { id: '56', pi: 'PI-1056', deadline: '2026-10-11', entityName: 'Condominio Papavero', activity: '73.1.A - Autorimessa', address: 'Via Roma 77', municipality: 'Reggio Emilia', administrator: 'Studio Reggio Casa', adminEmail: 'reggiocasa@tin.it' },
-            { id: '57', pi: 'PI-1057', deadline: '2027-10-10', entityName: 'Palazzo Giada', activity: '75.1.A - Gruppo Elettrogeno', address: 'Via Padova 45', municipality: 'Milano', administrator: 'Studio Ambrosiano', adminEmail: 'info@studioambrosiano.it' },
-            { id: '58', pi: 'PI-1058', deadline: '2026-03-12', entityName: 'Condominio Ortensia 2', activity: '74.1.A - Centrale Termica', address: 'Via Varese 5', municipality: 'Busto Arsizio', administrator: 'Geom. Laura Conti', adminEmail: 'conti@studioconti.it' },
-            { id: '59', pi: 'PI-1059', deadline: '2026-09-09', entityName: 'Residenza I Ciliegi', activity: '73.1.A - Autorimessa', address: 'Via Garibaldi 8', municipality: 'Cesano Maderno', administrator: 'Studio Brianza Gestioni', adminEmail: 'brianzagestioni@libero.it' },
-            { id: '60', pi: 'PI-1060', deadline: '2026-10-28', entityName: 'Condominio Primula 2', activity: '77.2.B - Edificio Civile', address: 'Via Milano 24', municipality: 'Cinisello Balsamo', administrator: 'Studio Norte', adminEmail: 'norte@gestioni.it' },
-            { id: '61', pi: 'PI-1061', deadline: '2028-01-10', entityName: 'Complex Parco Nord', activity: '70.2.C - Magazzino Merci', address: 'Via Unaresimo 100', municipality: 'Milano', administrator: 'Gestione Immobili SpA', adminEmail: 'gestione@europarc.it' },
-            { id: '62', pi: 'PI-1062', deadline: '2026-06-25', entityName: 'Condominio Verbena', activity: '73.1.A - Autorimessa', address: 'Via Cavour 12', municipality: 'Magenta', administrator: 'Studio Magenta Casa', adminEmail: 'magentacasa@libero.it' },
-            { id: '63', pi: 'PI-1063', deadline: '2026-09-16', entityName: 'Residenza Il Platano', activity: '74.1.A - Centrale Termica', address: 'Via Roma 33', municipality: 'Erba', administrator: 'Geom. Franco Riva', adminEmail: 'riva.amministrazioni@tin.it' },
-            { id: '64', pi: 'PI-1064', deadline: '2026-10-14', entityName: 'Condominio Dalia', activity: '77.2.B - Edificio Civile', address: 'Via Verdi 9', municipality: 'Verbania', administrator: 'Studio Lago Immobili', adminEmail: 'lago@immobili.it' },
-            { id: '65', pi: 'PI-1065', deadline: '2027-07-04', entityName: 'Palazzo Opale', activity: '73.1.A - Autorimessa', address: 'Via Tortona 31', municipality: 'Milano', administrator: 'Studio Immobiliare Alpha', adminEmail: 'info@alphagroup.it' },
-            { id: '66', pi: 'PI-1066', deadline: '2026-01-05', entityName: 'Condominio Glicine', activity: '74.1.A - Centrale Termica', address: 'Via Bellini 14', municipality: 'Brescia', administrator: 'Geom. Franco Riva', adminEmail: 'riva.amministrazioni@tin.it' },
-            { id: '67', pi: 'PI-1067', deadline: '2026-09-27', entityName: 'Residenza I Tigli', activity: '73.1.A - Autorimessa', address: 'Via Dante 3', municipality: 'Crema', administrator: 'Studio Crema Gestioni', adminEmail: 'cremagestioni@tin.it' },
-            { id: '68', pi: 'PI-1068', deadline: '2026-10-09', entityName: 'Condominio Iris', activity: '77.2.B - Edificio Civile', address: 'Via Garibaldi 60', municipality: 'Modena', administrator: 'Studio Modena Immobili', adminEmail: 'modena@immobili.it' },
-            { id: '69', pi: 'PI-1069', deadline: '2028-09-01', entityName: 'Torre Velasca Sud', activity: '77.1.A - Edificio Alto', address: 'Piazza Velasca 5', municipality: 'Milano', administrator: 'Milano Property Mgmt', adminEmail: 'pm@milanoproperty.it' },
-            { id: '70', pi: 'PI-1070', deadline: '2026-05-30', entityName: 'Condominio Ortensia 3', activity: '73.1.A - Autorimessa', address: 'Via Varese 7', municipality: 'Busto Arsizio', administrator: 'Geom. Laura Conti', adminEmail: 'conti@studioconti.it' },
-            { id: '71', pi: 'PI-1071', deadline: '2026-09-13', entityName: 'Residenza Il Cipresso', activity: '74.1.A - Centrale Termica', address: 'Via Pascoli 2', municipality: 'Monza', administrator: 'Studio Verdi & Partners', adminEmail: 'amministrazione@verdi.it' },
-            { id: '72', pi: 'PI-1072', deadline: '2026-10-17', entityName: 'Condominio Freesia', activity: '77.2.B - Edificio Civile', address: 'Via Roma 11', municipality: 'Como', administrator: 'Studio Galli', adminEmail: 'info@studiogalli.it' },
-            { id: '73', pi: 'PI-1073', deadline: '2027-05-01', entityName: 'Palazzo Onice', activity: '73.1.A - Autorimessa', address: 'Via Marghera 18', municipality: 'Milano', administrator: 'Studio Rossi & C.', adminEmail: 'rossi@condomini.it' },
-            { id: '74', pi: 'PI-1074', deadline: '2026-02-18', entityName: 'Condominio Anemone', activity: '74.1.A - Centrale Termica', address: 'Via Cavour 8', municipality: 'Sondrio', administrator: 'Studio Valtellina Casa', adminEmail: 'info@valtellinacasa.it' },
-            { id: '75', pi: 'PI-1075', deadline: '2026-09-29', entityName: 'Residenza Le Querce', activity: '73.1.A - Autorimessa', address: 'Via Milano 50', municipality: 'Cantu', administrator: 'Studio Cantù Immobili', adminEmail: 'cantu@immobili.it' },
-            { id: '76', pi: 'PI-1076', deadline: '2026-10-21', entityName: 'Condominio Violetta', activity: '77.2.B - Edificio Civile', address: 'Via Verdi 4', municipality: 'Lecco', administrator: 'Geom. Marco Lari', adminEmail: 'lari@studiolari.it' },
-            { id: '77', pi: 'PI-1077', deadline: '2028-11-20', entityName: 'Palazzo Turchese', activity: '75.1.A - Gruppo Elettrogeno', address: 'Via Washington 70', municipality: 'Milano', administrator: 'Studio Immobiliare Alpha', adminEmail: 'info@alphagroup.it' },
-            { id: '78', pi: 'PI-1078', deadline: '2026-04-30', entityName: 'Condominio Calendula', activity: '74.1.A - Centrale Termica', address: 'Via Torino 90', municipality: 'Novara', administrator: 'Immobiliare Sempione', adminEmail: 'admin@sempioneimmobili.it' },
-            { id: '79', pi: 'PI-1079', deadline: '2026-09-23', entityName: 'Residenza Gli Olmi 2', activity: '73.1.A - Autorimessa', address: 'Via Padova 112', municipality: 'Milano', administrator: 'Studio Ambrosiano', adminEmail: 'info@studioambrosiano.it' },
-            { id: '80', pi: 'PI-1080', deadline: '2026-10-06', entityName: 'Condominio Petunia', activity: '77.2.B - Edificio Civile', address: 'Via Garibaldi 19', municipality: 'Pavia', administrator: 'Geom. Matteo Valli', adminEmail: 'valli@studiovalli.it' },
-            { id: '81', pi: 'PI-1081', deadline: '2027-12-15', entityName: 'Residenza Il Gelsomino', activity: '74.1.A - Centrale Termica', address: 'Via Dante 40', municipality: 'Bergamo', administrator: 'Dott. Mario Rossi', adminEmail: 'm.rossi@gestioni.it' }
-        ];
-
-        window.onload = () => {
-            loadPractices();
-            lucide.createIcons();
-            render();
+        const firebaseConfig = {
+            apiKey: "AIzaSyB1V1I7lMYKT7_eUTiVEVFZDwPr3V94el8",
+            authDomain: "scadenziario-prince.firebaseapp.com",
+            projectId: "scadenziario-prince",
+            storageBucket: "scadenziario-prince.firebasestorage.app",
+            messagingSenderId: "224799236818",
+            appId: "1:224799236818:web:1fbd60f62f653f97f2030b"
         };
 
-        function loadPractices() {
-            const saved = localStorage.getItem('prince_fire_practices');
-            if (saved) {
-                try {
-                    practices = JSON.parse(saved);
-                } catch(e) {
-                    practices = initialSampleData;
-                }
-            } else {
-                practices = initialSampleData;
-                saveToLocalStorage();
-            }
-        }
+        let db, practices = [], currentFilter = 'all';
 
-        function saveToLocalStorage() {
-            localStorage.setItem('prince_fire_practices', JSON.stringify(practices));
-        }
-
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            
-            let bgColors = {
-                success: 'bg-emerald-600 text-white',
-                warning: 'bg-amber-500 text-white',
-                error: 'bg-rose-600 text-white',
-                info: 'bg-indigo-600 text-white'
-            };
-
-            let icons = {
-                success: 'check-circle-2',
-                warning: 'alert-triangle',
-                error: 'x-circle',
-                info: 'info'
-            };
-
-            toast.className = `toast-animate pointer-events-auto flex items-center p-3.5 rounded-xl shadow-xl text-xs font-semibold ${bgColors[type] || bgColors.info}`;
-            toast.innerHTML = `
-                <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 mr-2 shrink-0"></i>
-                <span class="flex-1">${message}</span>
-            `;
-
-            container.appendChild(toast);
-            lucide.createIcons();
-
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'transition-opacity', 'duration-300');
-                setTimeout(() => toast.remove(), 300);
-            }, 3500);
-        }
-
-        function showConfirm(title, message, callback) {
-            document.getElementById('confirmTitle').innerText = title;
-            document.getElementById('confirmMessage').innerText = message;
-            pendingConfirmCallback = callback;
-            document.getElementById('confirmModal').classList.remove('hidden');
-        }
-
-        document.getElementById('confirmCancelBtn').onclick = () => {
-            document.getElementById('confirmModal').classList.add('hidden');
-            pendingConfirmCallback = null;
-        };
-
-        document.getElementById('confirmOkBtn').onclick = () => {
-            if (pendingConfirmCallback) {
-                pendingConfirmCallback();
-            }
-            document.getElementById('confirmModal').classList.add('hidden');
-            pendingConfirmCallback = null;
-        };
-
-        function openModal(id = null) {
-            const modal = document.getElementById('practiceModal');
-            const form = document.getElementById('practiceForm');
-            const title = document.getElementById('modalTitle');
-            const submitBtn = document.getElementById('submitBtn');
-
-            form.reset();
-
-            if (id) {
-                const practice = practices.find(p => p.id === id);
-                if (practice) {
-                    document.getElementById('practiceId').value = practice.id;
-                    document.getElementById('pi').value = practice.pi || '';
-                    document.getElementById('deadline').value = practice.deadline || '';
-                    document.getElementById('entityName').value = practice.entityName || '';
-                    document.getElementById('municipality').value = practice.municipality || '';
-                    document.getElementById('address').value = practice.address || '';
-                    document.getElementById('activity').value = practice.activity || '';
-                    document.getElementById('administrator').value = practice.administrator || '';
-                    document.getElementById('adminEmail').value = practice.adminEmail || '';
-
-                    title.innerText = 'Modifica Pratica';
-                    submitBtn.innerText = 'Aggiorna Pratica';
-                }
-            } else {
-                document.getElementById('practiceId').value = '';
-                title.innerText = 'Nuova Pratica';
-                submitBtn.innerText = 'Salva Pratica';
-            }
-
-            modal.classList.remove('hidden');
-        }
-
-        function closeModal() {
-            document.getElementById('practiceModal').classList.add('hidden');
-        }
-
-        function savePractice(event) {
-            event.preventDefault();
-
-            const id = document.getElementById('practiceId').value;
-            const pi = document.getElementById('pi').value.trim();
-            const deadline = document.getElementById('deadline').value;
-            const entityName = document.getElementById('entityName').value.trim();
-            const municipality = document.getElementById('municipality').value.trim();
-            const address = document.getElementById('address').value.trim();
-            const activity = document.getElementById('activity').value.trim();
-            const administrator = document.getElementById('administrator').value.trim();
-            const adminEmail = document.getElementById('adminEmail').value.trim();
-
-            if (id) {
-                const index = practices.findIndex(p => p.id === id);
-                if (index !== -1) {
-                    practices[index] = { id, pi, deadline, entityName, municipality, address, activity, administrator, adminEmail };
-                    showToast('Pratica aggiornata con successo!', 'success');
-                }
-            } else {
-                const newPractice = {
-                    id: Date.now().toString(),
-                    pi, deadline, entityName, municipality, address, activity, administrator, adminEmail
-                };
-                practices.unshift(newPractice);
-                showToast('Nuova pratica aggiunta!', 'success');
-            }
-
-            saveToLocalStorage();
-            closeModal();
-            render();
-        }
-
-        function deletePractice(id) {
-            showConfirm('Elimina Pratica', 'Sei sicuro di voler eliminare questa pratica dal registro?', () => {
-                practices = practices.filter(p => p.id !== id);
-                saveToLocalStorage();
-                render();
-                showToast('Pratica eliminata.', 'warning');
-            });
-        }
-
-        function getStatus(deadlineStr) {
-            if (!deadlineStr) return { status: 'unknown', text: 'N/D', days: 0, badge: 'bg-slate-100 text-slate-600' };
-
-            const deadline = new Date(deadlineStr);
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            deadline.setHours(0,0,0,0);
-
-            const diffTime = deadline - today;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays < 0) {
-                return { status: 'expired', text: `Scaduta (${Math.abs(diffDays)} gg)`, days: diffDays, badge: 'bg-rose-100 text-rose-700 font-bold border border-rose-200' };
-            } else if (diffDays <= 60) {
-                return { status: 'imminent', text: `In scadenza (${diffDays} gg)`, days: diffDays, badge: 'bg-amber-100 text-amber-800 font-bold border border-amber-200' };
-            } else {
-                return { status: 'valid', text: `Regolare (${diffDays} gg)`, days: diffDays, badge: 'bg-emerald-100 text-emerald-700 font-bold border border-emerald-200' };
-            }
-        }
-
-        function setFilter(filter) {
-            currentFilter = filter;
-            
-            ['All', 'Expired', 'Imminent', 'Valid'].forEach(f => {
-                const btn = document.getElementById(`btnFilter${f}`);
-                if (filter.toLowerCase() === f.toLowerCase()) {
-                    btn.className = 'px-3 py-1.5 rounded-lg bg-white shadow-sm text-slate-800 font-bold';
-                } else {
-                    btn.className = 'px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800';
-                }
-            });
-
-            render();
-        }
-
-        function sortBy(field) {
-            if (currentSortField === field) {
-                currentSortAsc = !currentSortAsc;
-            } else {
-                currentSortField = field;
-                currentSortAsc = true;
-            }
-            render();
-        }
-
-        function refreshData() {
-            loadPractices();
-            render();
-            showToast('Vista e dati ricaricati con successo!', 'info');
-        }
-
-        function resetToInitial81Data() {
-            showConfirm(
-                'Ripristina 81 Pratiche CPI',
-                'Vuoi ricaricare il registro con tutte le 81 pratiche CPI predefinite? Eventuali modifiche locali verranno sovrascritte.',
-                () => {
-                    practices = JSON.parse(JSON.stringify(initialSampleData));
-                    saveToLocalStorage();
-                    render();
-                    showToast('Ripristinate con successo le 81 pratiche CPI!', 'success');
-                }
-            );
-        }
-
-        function render() {
-            const tableBody = document.getElementById('practiceTableBody');
-            const emptyState = document.getElementById('emptyState');
-            const searchInput = document.getElementById('searchInput').value.toLowerCase().trim();
-
-            let total = practices.length;
-            let expired = 0;
-            let imminent = 0;
-            let valid = 0;
-
-            practices.forEach(p => {
-                const st = getStatus(p.deadline);
-                if (st.status === 'expired') expired++;
-                else if (st.status === 'imminent') imminent++;
-                else if (st.status === 'valid') valid++;
-            });
-
-            document.getElementById('statTotal').innerText = total;
-            document.getElementById('statExpired').innerText = expired;
-            document.getElementById('statImminent').innerText = imminent;
-            document.getElementById('statValid').innerText = valid;
-
-            let filtered = practices.filter(p => {
-                const st = getStatus(p.deadline);
-                
-                if (currentFilter === 'expired' && st.status !== 'expired') return false;
-                if (currentFilter === 'imminent' && st.status !== 'imminent') return false;
-                if (currentFilter === 'valid' && st.status !== 'valid') return false;
-
-                if (searchInput) {
-                    const haystack = `${p.entityName} ${p.pi} ${p.municipality} ${p.address} ${p.activity} ${p.administrator}`.toLowerCase();
-                    if (!haystack.includes(searchInput)) return false;
-                }
-
-                return true;
-            });
-
-            filtered.sort((a, b) => {
-                let valA = a[currentSortField] || '';
-                let valB = b[currentSortField] || '';
-                
-                if (currentSortField === 'deadline') {
-                    valA = valA ? new Date(valA).getTime() : 0;
-                    valB = valB ? new Date(valB).getTime() : 0;
-                } else {
-                    valA = valA.toString().toLowerCase();
-                    valB = valB.toString().toLowerCase();
-                }
-
-                if (valA < valB) return currentSortAsc ? -1 : 1;
-                if (valA > valB) return currentSortAsc ? 1 : -1;
-                return 0;
-            });
-
-            tableBody.innerHTML = '';
-
-            if (filtered.length === 0) {
-                emptyState.classList.remove('hidden');
-            } else {
-                emptyState.classList.add('hidden');
-
-                filtered.forEach(p => {
-                    const st = getStatus(p.deadline);
-                    const formattedDate = p.deadline ? new Date(p.deadline).toLocaleDateString('it-IT') : 'N/D';
-
-                    let rowClass = 'hover:bg-slate-50 transition border-b border-slate-100';
-                    if (st.status === 'expired') rowClass += ' expired-row';
-                    else if (st.status === 'imminent') rowClass += ' imminent-row';
-
-                    const row = document.createElement('tr');
-                    row.className = rowClass;
-                    row.innerHTML = `
-                        <td class="p-4 font-bold text-slate-900">${p.entityName || '-'}</td>
-                        <td class="p-4 font-mono font-semibold text-indigo-600">${p.pi || '-'}</td>
-                        <td class="p-4 text-slate-600">
-                            <div>${p.municipality || '-'}</div>
-                            <div class="text-[11px] text-slate-400">${p.address || ''}</div>
-                        </td>
-                        <td class="p-4 text-slate-600 font-medium">${p.activity || '-'}</td>
-                        <td class="p-4 text-slate-600">
-                            <div>${p.administrator || '-'}</div>
-                            <div class="text-[11px] text-slate-400">${p.adminEmail || ''}</div>
-                        </td>
-                        <td class="p-4 text-center font-bold font-mono">${formattedDate}</td>
-                        <td class="p-4 text-center">
-                            <span class="px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider ${st.badge}">
-                                ${st.text}
-                            </span>
-                        </td>
-                        <td class="p-4 text-right space-x-1 whitespace-nowrap">
-                            <button onclick="openModal('${p.id}')" title="Modifica Pratica" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
-                                <i data-lucide="edit-3" class="w-4 h-4"></i>
-                            </button>
-                            <button onclick="deletePractice('${p.id}')" title="Elimina Pratica" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            </button>
-                        </td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-            }
-
-            lucide.createIcons();
-        }
-
-        function openWebhookModal() {
-            const savedUrl = localStorage.getItem('prince_webhook_url') || '';
-            document.getElementById('webhookUrlInput').value = savedUrl;
-            document.getElementById('webhookModal').classList.remove('hidden');
-        }
-
-        function closeWebhookModal() {
-            document.getElementById('webhookModal').classList.add('hidden');
-        }
-
-        async function syncToGoogleSheets() {
-            const url = document.getElementById('webhookUrlInput').value.trim();
-            if (!url) {
-                showToast('Inserisci un URL Apps Script valido.', 'warning');
-                return;
-            }
-
-            localStorage.setItem('prince_webhook_url', url);
-
-            const payload = practices.map(p => ({
-                condominio: p.entityName,
-                pi: p.pi,
-                piCode: p.pi,
-                comune: p.municipality,
-                indirizzo: p.address,
-                scadenza: p.deadline
-            }));
-
-            showToast('Invio dati a Google Sheets in corso...', 'info');
-
+        async function init() {
             try {
-                await fetch(url, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                const auth = getAuth(app);
+                await signInAnonymously(auth);
+                onAuthStateChanged(auth, u => { if(u) setupSync(); });
+            } catch (e) { showError(e.message); }
+        }
+
+        function showError(msg) {
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorDetails').innerText = msg;
+        }
+
+        function setupSync() {
+            onSnapshot(collection(db, 'scadenze_pratiche'), snap => {
+                practices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                updateCounts();
+                render();
+            });
+        }
+
+        function updateCounts() {
+            const now = new Date().setHours(0,0,0,0);
+            const counts = { all: practices.length, expired: 0, imminent: 0, valid: 0 };
+            
+            practices.forEach(p => {
+                const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
+                if (diff < 0) counts.expired++;
+                else if (diff <= 60) counts.imminent++;
+                else counts.valid++;
+            });
+
+            document.getElementById('count-all').innerText = counts.all;
+            document.getElementById('count-expired').innerText = counts.expired;
+            document.getElementById('count-imminent').innerText = counts.imminent;
+            document.getElementById('count-valid').innerText = counts.valid;
+        }
+
+        window.setFilter = (type) => {
+            currentFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${type}`).classList.add('active');
+            render();
+        };
+
+        window.render = () => {
+            const term = document.getElementById('searchBar').value.toLowerCase();
+            const body = document.getElementById('tableBody');
+            const now = new Date().setHours(0,0,0,0);
+            
+            let filtered = practices.filter(p => 
+                (p.pi || "").toLowerCase().includes(term) || 
+                (p.entityName || "").toLowerCase().includes(term) ||
+                (p.municipality || "").toLowerCase().includes(term) ||
+                (p.address || "").toLowerCase().includes(term)
+            );
+
+            if (currentFilter !== 'all') {
+                filtered = filtered.filter(p => {
+                    const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
+                    if (currentFilter === 'expired') return diff < 0;
+                    if (currentFilter === 'imminent') return diff >= 0 && diff <= 60;
+                    if (currentFilter === 'valid') return diff > 60;
+                    return true;
                 });
-
-                closeWebhookModal();
-                showToast('Dati inviati con successo a Google Sheets!', 'success');
-            } catch(e) {
-                showToast('Errore durante la sincronizzazione: ' + e.message, 'error');
-            }
-        }
-
-        function exportToExcel() {
-            if (practices.length === 0) {
-                showToast('Nessuna pratica da esportare.', 'warning');
-                return;
             }
 
-            const data = practices.map(p => ({
-                'Codice PI': p.pi,
-                'Condominio / Ente': p.entityName,
-                'Comune': p.municipality,
-                'Indirizzo': p.address,
-                'Attività': p.activity,
-                'Amministratore': p.administrator,
-                'Email Amministratore': p.adminEmail,
-                'Scadenza': p.deadline
-            }));
+            filtered.sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
+            
+            body.innerHTML = filtered.map(p => {
+                const diff = p.deadline ? Math.ceil((new Date(p.deadline) - now) / 86400000) : 999;
+                let statusClass = "";
+                if (diff < 0) statusClass = "expired";
+                else if (diff <= 60) statusClass = "imminent";
 
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Pratiche CPI");
-            XLSX.writeFile(wb, `Pratiche_CPI_PRINCE_${new Date().toISOString().split('T')[0]}.xlsx`);
-            showToast('File Excel generato con successo!', 'success');
+                return `<tr class="hover:bg-gray-50/50 transition-colors ${statusClass}">
+                    <td class="p-4 font-bold text-gray-900 tracking-tighter">${p.pi ? '#' + p.pi : '-'}</td>
+                    <td class="p-4 font-bold text-center">
+                        <span class="px-2 py-1 rounded ${statusClass === 'expired' ? 'text-red-700' : (statusClass === 'imminent' ? 'text-yellow-700' : '')}">
+                            ${p.deadline ? p.deadline.split('-').reverse().join('/') : '-'}
+                        </span>
+                    </td>
+                    <td class="p-4 font-bold text-gray-800">${p.entityName || 'N.D.'}</td>
+                    <td class="p-4 text-xs font-semibold uppercase">${p.municipality || '-'}</td>
+                    <td class="p-4 text-xs text-gray-500 uppercase">${p.address || '-'}</td>
+                    <td class="p-4 text-xs font-bold text-blue-700 uppercase tracking-tighter">${p.activity || '-'}</td>
+                    <td class="p-4 text-right">
+                        <div class="flex justify-end gap-1">
+                            <button onclick="edit('${p.id}')" class="text-blue-600 p-2 hover:bg-blue-100 rounded-lg transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="del('${p.id}')" class="text-red-600 p-2 hover:bg-red-100 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+            lucide.createIcons();
         }
 
-        function importFromExcel(event) {
+        // --- BACKUP JSON ---
+        window.exportData = () => {
+            const dataStr = JSON.stringify(practices, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `backup_safecheck_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+        };
+
+        // --- RIPRISTINA JSON ---
+        window.importFromJson = (event) => {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const sheetName = workbook.SheetNames[0];
-                    const sheet = workbook.Sheets[sheetName];
-                    const json = XLSX.utils.sheet_to_json(sheet);
-
-                    let importedCount = 0;
-                    json.forEach(row => {
-                        const pi = row['Codice PI'] || row['PI'] || row['pi'] || '';
-                        const entityName = row['Condominio / Ente'] || row['Condominio'] || row['entityName'] || '';
-                        if (pi || entityName) {
-                            practices.unshift({
-                                id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
-                                pi: String(pi),
-                                entityName: String(entityName),
-                                municipality: String(row['Comune'] || row['municipality'] || ''),
-                                address: String(row['Indirizzo'] || row['address'] || ''),
-                                activity: String(row['Attività'] || row['activity'] || ''),
-                                administrator: String(row['Amministratore'] || row['administrator'] || ''),
-                                adminEmail: String(row['Email Amministratore'] || row['adminEmail'] || ''),
-                                deadline: String(row['Scadenza'] || row['deadline'] || '')
-                            });
-                            importedCount++;
-                        }
-                    });
-
-                    saveToLocalStorage();
-                    render();
-                    showToast(`Importate con successo ${importedCount} pratiche!`, 'success');
-                } catch(err) {
-                    showToast('Errore durante la lettura del file Excel.', 'error');
-                }
-            };
-            reader.readAsArrayBuffer(file);
-            event.target.value = '';
-        }
-
-        function exportData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(practices, null, 2));
-            const downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", `Backup_PRINCE_CPI_${new Date().toISOString().split('T')[0]}.json`);
-            document.body.appendChild(downloadAnchor);
-            downloadAnchor.click();
-            downloadAnchor.remove();
-            showToast('Backup JSON esportato!', 'success');
-        }
-
-        function importFromJson(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (Array.isArray(data)) {
-                        showConfirm('Ripristina Backup', 'Questa operazione sostituirà tutte le pratiche attuali con quelle del backup JSON. Continuare?', () => {
-                            practices = data;
-                            saveToLocalStorage();
-                            render();
-                            showToast('Ripristino completato con successo!', 'success');
+                    if (!Array.isArray(data)) throw new Error("Formato JSON non valido.");
+                    
+                    if (confirm(`Stai per ripristinare ${data.length} pratiche dal backup. I dati esistenti con lo stesso codice verranno aggiornati. Procedere?`)) {
+                        const batch = writeBatch(db);
+                        data.forEach(p => {
+                            const existing = practices.find(ex => ex.pi === p.pi);
+                            const cleanData = { ...p };
+                            delete cleanData.id; // Non usiamo l'ID del backup per evitare conflitti
+                            cleanData.updatedAt = serverTimestamp();
+
+                            if (existing) {
+                                batch.update(doc(db, 'scadenze_pratiche', existing.id), cleanData);
+                            } else {
+                                batch.set(doc(collection(db, 'scadenze_pratiche')), cleanData);
+                            }
                         });
-                    } else {
-                        showToast('Formato file JSON non valido.', 'error');
+                        await batch.commit();
+                        alert("Database ripristinato con successo!");
                     }
-                } catch(err) {
-                    showToast('Errore nel caricamento del file JSON.', 'error');
+                } catch (err) {
+                    alert("Errore nel caricamento del file: " + err.message);
+                }
+                event.target.value = "";
+            };
+            reader.readAsText(file);
+        };
+
+        // --- EXPORT & IMPORT EXCEL ---
+        window.exportToExcel = () => {
+            const headers = ["PI", "Scadenza", "Condominio_Societa", "Comune", "Indirizzo", "Attivita", "Amministratore", "Email_Amministratore"];
+            const excelHeader = "sep=;\n";
+            const rows = practices.map(p => [p.pi||"", p.deadline||"", p.entityName||"", p.municipality||"", p.address||"", p.activity||"", p.administrator||"", p.adminEmail||""]);
+            const csv = excelHeader + [headers, ...rows].map(e => e.map(String).map(v => `"${v.replaceAll('"', '""')}"`).join(";")).join("\n");
+            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `export_fire_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        };
+
+        window.importFromExcel = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                let content = e.target.result;
+                if (content.startsWith("sep=")) content = content.substring(content.indexOf("\n") + 1);
+                const lines = content.split(/\r?\n/).filter(line => line.trim() !== "");
+                if (lines.length < 2) return;
+                const firstLine = lines[0];
+                const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
+                const parseCSVLine = (text, delim) => {
+                    const regex = new RegExp(`(?:${delim}|\\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^"${delim}\\n\\r]*))`, 'g');
+                    const results = [];
+                    let match;
+                    while ((match = regex.exec(text)) !== null) {
+                        let val = match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2];
+                        results.push(val ? val.trim() : "");
+                    }
+                    return results;
+                };
+                const dataRows = lines.slice(1).map(line => parseCSVLine(line, delimiter));
+                if (confirm(`Rilevate ${dataRows.length} righe. Procedere con l'aggiornamento?`)) {
+                    const batch = writeBatch(db);
+                    for (const row of dataRows) {
+                        const piCode = row[0] ? row[0].trim() : null;
+                        if (!piCode) continue;
+                        const practiceData = {
+                            pi: piCode,
+                            deadline: row[1] || "",
+                            entityName: row[2] || "",
+                            municipality: row[3] || "",
+                            address: row[4] || "",
+                            activity: row[5] || "",
+                            administrator: row[6] || "",
+                            adminEmail: row[7] || "",
+                            mailSent60: false,
+                            updatedAt: serverTimestamp()
+                        };
+                        const existing = practices.find(p => p.pi === piCode);
+                        if (existing) batch.update(doc(db, 'scadenze_pratiche', existing.id), practiceData);
+                        else batch.set(doc(collection(db, 'scadenze_pratiche')), practiceData);
+                    }
+                    await batch.commit();
+                    alert("Importazione completata!");
+                    event.target.value = ""; 
                 }
             };
             reader.readAsText(file);
-            event.target.value = '';
-        }
+        };
+
+        window.openModal = () => { document.getElementById('practiceForm').reset(); document.getElementById('practiceId').value = ''; document.getElementById('modalTitle').innerText = 'Nuova Pratica'; document.getElementById('practiceModal').classList.remove('hidden'); };
+        window.closeModal = () => document.getElementById('practiceModal').classList.add('hidden');
+        window.edit = (id) => {
+            const p = practices.find(x => x.id === id);
+            document.getElementById('practiceId').value = id;
+            document.getElementById('pi').value = p.pi || '';
+            document.getElementById('deadline').value = p.deadline || '';
+            document.getElementById('entityName').value = p.entityName || '';
+            document.getElementById('activity').value = p.activity || '';
+            document.getElementById('address').value = p.address || '';
+            document.getElementById('administrator').value = p.administrator || '';
+            document.getElementById('adminEmail').value = p.adminEmail || '';
+            document.getElementById('municipality').value = p.municipality || '';
+            document.getElementById('modalTitle').innerText = 'Modifica Pratica';
+            document.getElementById('practiceModal').classList.remove('hidden');
+        };
+        window.del = async (id) => { if(confirm('Eliminare?')) await deleteDoc(doc(db, 'scadenze_pratiche', id)); };
+        document.getElementById('practiceForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('practiceId').value;
+            const data = {
+                pi: document.getElementById('pi').value || null,
+                deadline: document.getElementById('deadline').value || null,
+                entityName: document.getElementById('entityName').value || null,
+                activity: document.getElementById('activity').value || null,
+                address: document.getElementById('address').value || null,
+                administrator: document.getElementById('administrator').value || null,
+                adminEmail: document.getElementById('adminEmail').value || null,
+                municipality: document.getElementById('municipality').value || null,
+                mailSent60: false, 
+                updatedAt: serverTimestamp()
+            };
+            if(id) await updateDoc(doc(db, 'scadenze_pratiche', id), data);
+            else await addDoc(collection(db, 'scadenze_pratiche'), data);
+            closeModal();
+        };
+        init();
     </script>
 </body>
 </html>
